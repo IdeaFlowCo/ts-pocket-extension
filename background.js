@@ -1,4 +1,17 @@
 // Background script for TsPocket Chrome Extension
+console.log('🚀 [BACKGROUND] Service worker starting...');
+
+// Global error handler to prevent service worker crashes
+self.addEventListener('error', (event) => {
+  console.error('❌ [BACKGROUND] Global error:', event.error);
+  event.preventDefault();
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  console.error('❌ [BACKGROUND] Unhandled promise rejection:', event.reason);
+  event.preventDefault();
+});
+
 import { loginWithAuth0, logout, isLoggedIn } from './auth.js';
 import CONFIG from './config.js';
 import apiClient, { TsPocketError, AuthError, NetworkError, ContentExtractionError } from './api-client.js';
@@ -9,14 +22,33 @@ import chromeApi from './chrome-api.js';
 let isInitialized = false;
 let initializationPromise = null;
 
+// Debug logging to storage
+const debugLog = async (message, data = {}) => {
+  const timestamp = new Date().toISOString();
+  const logEntry = { timestamp, message, data };
+  console.log(`[${timestamp}] ${message}`, data);
+  
+  // Store last 50 debug logs
+  try {
+    const { debugLogs = [] } = await storageService.get('debugLogs');
+    debugLogs.push(logEntry);
+    if (debugLogs.length > 50) {
+      debugLogs.splice(0, debugLogs.length - 50);
+    }
+    await storageService.set({ debugLogs });
+  } catch (e) {
+    console.error('Failed to store debug log:', e);
+  }
+};
+
 // Initialize extension on startup and install
 chromeApi.runtime.onStartup.addListener(() => {
-  console.log('Extension startup event');
+  debugLog('Extension startup event');
   ensureInitialized();
 });
 
 chromeApi.runtime.onInstalled.addListener((details) => {
-  console.log('Extension installed/updated:', details.reason);
+  debugLog('Extension installed/updated', { reason: details.reason });
   ensureInitialized();
 });
 
@@ -220,7 +252,7 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
 
 // Handle save action
 async function handleSave(tab, tags = []) {
-  console.log('🚀 [BACKGROUND] Starting save process for tab:', tab.url);
+  await debugLog('Starting save process', { url: tab.url, tabId: tab.id });
   
   try {
     // Show saving badge
@@ -230,14 +262,19 @@ async function handleSave(tab, tags = []) {
     
     try {
       // Try to extract article content
-      console.log('📊 [BACKGROUND] Attempting content extraction...');
+      await debugLog('Attempting content extraction');
       articleData = await extractArticleContent(tab);
-      console.log('✅ [BACKGROUND] Content extracted successfully:', {
+      await debugLog('Content extracted successfully', {
         title: articleData.title,
-        contentLength: articleData.content?.length
+        contentLength: articleData.content?.length,
+        hasAuthor: !!articleData.author,
+        hasDescription: !!articleData.description
       });
     } catch (extractError) {
-      console.error('❌ [BACKGROUND] Content extraction failed:', extractError);
+      await debugLog('Content extraction failed', { 
+        error: extractError.message,
+        type: extractError.name 
+      });
       
       // If content extraction fails, provide fallback data with user notification
       if (extractError instanceof ContentExtractionError) {
@@ -372,17 +409,21 @@ Saved: ${new Date(article.savedAt).toLocaleString()}`;
 
 // Message handler with initialization check
 chromeApi.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  debugLog('Message received', { action: request.action, from: sender.tab?.url || 'extension' });
+  
   // Ensure extension is initialized before handling messages
   ensureInitialized()
     .then(() => handleMessage(request, sender, sendResponse))
     .catch(error => {
-      console.error('Failed to initialize before handling message:', error);
+      debugLog('Failed to initialize before handling message', { error: error.message });
       sendResponse({ success: false, error: 'Extension initialization failed' });
     });
   return true; // Always return true for async response
 });
 
 async function handleMessage(request, sender, sendResponse) {
+  await debugLog('Handling message', { action: request.action });
+  
   if (request.action === 'save') {
     (async () => {
       try {

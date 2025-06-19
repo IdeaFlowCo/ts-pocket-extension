@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>TsPocket Debug Logs</title>
+  <style>
+    body {
+      font-family: monospace;
+      padding: 20px;
+      background: #1e1e1e;
+      color: #d4d4d4;
+    }
+    .controls {
+      margin-bottom: 20px;
+    }
+    button {
+      padding: 8px 16px;
+      margin-right: 10px;
+      background: #0e639c;
+      color: white;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+    button:hover {
+      background: #1177bb;
+    }
+    .log-entry {
+      margin-bottom: 10px;
+      padding: 10px;
+      background: #2d2d30;
+      border-radius: 4px;
+      border-left: 3px solid #0e639c;
+    }
+    .timestamp {
+      color: #608b4e;
+      font-weight: bold;
+    }
+    .message {
+      color: #dcdcaa;
+      margin: 5px 0;
+    }
+    .data {
+      color: #9cdcfe;
+      white-space: pre-wrap;
+      font-size: 12px;
+    }
+    .error {
+      border-left-color: #f48771;
+    }
+    .error .message {
+      color: #f48771;
+    }
+    #status {
+      margin-bottom: 20px;
+      padding: 10px;
+      background: #2d2d30;
+      border-radius: 4px;
+    }
+  </style>
+</head>
+<body>
+  <h1>TsPocket Debug Logs</h1>
+  
+  <div class="controls">
+    <button id="refresh">Refresh Logs</button>
+    <button id="clear">Clear Logs</button>
+    <button id="testSave">Test Save</button>
+  </div>
+  
+  <div id="status"></div>
+  <div id="logs"></div>
+  
+  <script src="debug.js"></script>
+</body>
+</html>
