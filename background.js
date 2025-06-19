@@ -41,6 +41,9 @@ const debugLog = async (message, data = {}) => {
   }
 };
 
+// Log immediately when script loads
+debugLog('Background script loaded');
+
 // Initialize extension on startup and install
 chromeApi.runtime.onStartup.addListener(() => {
   debugLog('Extension startup event');
@@ -51,6 +54,10 @@ chromeApi.runtime.onInstalled.addListener((details) => {
   debugLog('Extension installed/updated', { reason: details.reason });
   ensureInitialized();
 });
+
+// Also initialize immediately
+debugLog('Initializing extension...');
+ensureInitialized();
 
 // Ensure initialization happens only once
 function ensureInitialized() {

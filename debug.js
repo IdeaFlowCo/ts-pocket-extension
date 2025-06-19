@@ -1,6 +1,14 @@
 // Debug viewer for TsPocket extension
+console.log('Debug viewer loaded');
+
+// Check if we're in extension context
+if (!chrome?.storage?.local) {
+  document.getElementById('logs').innerHTML = '<div class="error">Error: This page must be opened from the extension folder (file:// URL)</div>';
+  return;
+}
 
 async function loadLogs() {
+  console.log('Loading logs...');
   const logsDiv = document.getElementById('logs');
   const statusDiv = document.getElementById('status');
   

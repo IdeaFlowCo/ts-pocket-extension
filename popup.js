@@ -246,6 +246,59 @@ function setupEventListeners() {
   
   // Import file handler
   importFile.addEventListener('change', handlePocketImport);
+  
+  // Debug button
+  const debugBtn = document.getElementById('debugBtn');
+  const debugInfo = document.getElementById('debugInfo');
+  
+  if (debugBtn) {
+    debugBtn.addEventListener('click', async () => {
+      try {
+        // Toggle debug info visibility
+        if (!debugInfo.classList.contains('hidden')) {
+          debugInfo.classList.add('hidden');
+          debugBtn.textContent = 'View Debug Logs';
+          return;
+        }
+        
+        // Load debug logs from storage
+        const result = await chrome.storage.local.get(['debugLogs', 'authToken', 'userId']);
+        const logs = result.debugLogs || [];
+        
+        // Show debug info
+        debugInfo.classList.remove('hidden');
+        debugBtn.textContent = 'Hide Debug Logs';
+        
+        // Format logs
+        let html = `<div style="margin-bottom: 10px;">
+          <strong>Auth:</strong> ${result.authToken ? '✅' : '❌'} 
+          <strong>UserID:</strong> ${result.userId || 'None'}
+          <strong>Logs:</strong> ${logs.length}
+        </div>`;
+        
+        // Show recent logs (newest first)
+        logs.slice(-10).reverse().forEach(log => {
+          const isError = log.message.includes('error') || log.message.includes('fail') || log.message.includes('❌');
+          html += `<div style="color: ${isError ? 'red' : 'black'}; margin-bottom: 5px;">
+            ${log.timestamp.split('T')[1].split('.')[0]} - ${log.message}
+            ${log.data && Object.keys(log.data).length > 0 ? 
+              `<br><span style="font-size: 11px; color: #666;">${JSON.stringify(log.data)}</span>` : ''}
+          </div>`;
+        });
+        
+        if (logs.length === 0) {
+          html += '<div>No debug logs found. Try saving an article.</div>';
+        }
+        
+        debugInfo.innerHTML = html;
+        
+      } catch (error) {
+        console.error('Failed to load debug logs:', error);
+        debugInfo.innerHTML = `<div style="color: red;">Error loading logs: ${error.message}</div>`;
+        debugInfo.classList.remove('hidden');
+      }
+    });
+  }
 }
 
 // Handle quick save
