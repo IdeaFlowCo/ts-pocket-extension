@@ -1,0 +1,119 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>TsPocket</title>
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <div class="popup-container">
+    <!-- Header -->
+    <div class="header">
+      <h1>TsPocket</h1>
+      <button id="settingsBtn" class="icon-btn" title="Settings">⚙️</button>
+    </div>
+    
+    <!-- Save Status -->
+    <div id="saveStatus" class="save-status hidden">
+      <div class="status-icon"></div>
+      <div class="status-message"></div>
+    </div>
+    
+    <!-- Main Content -->
+    <div id="mainView" class="view">
+      <!-- Quick Save Button -->
+      <button id="quickSaveBtn" class="primary-btn">
+        <span class="btn-icon">📌</span>
+        <span class="btn-text">Save to Thoughtstream</span>
+      </button>
+      
+      <!-- Post-Save Options (hidden by default) -->
+      <div id="postSaveOptions" class="post-save-options hidden">
+        <div class="saved-message">
+          <span class="check-icon">✓</span>
+          <span>Saved to Thoughtstream!</span>
+        </div>
+        
+        <!-- Tags Input -->
+        <div class="tags-section">
+          <input 
+            type="text" 
+            id="tagsInput" 
+            class="tags-input" 
+            placeholder="Add tags (space-separated)"
+          />
+          <button id="addTagsBtn" class="secondary-btn small-btn">Add Tags</button>
+        </div>
+      </div>
+      
+      <!-- Recent Saves -->
+      <div class="recent-section">
+        <div class="recent-header">
+          <h3>Recently Saved</h3>
+          <input 
+            type="text" 
+            id="searchInput" 
+            class="search-input" 
+            placeholder="Search saved articles..."
+          />
+        </div>
+        <div id="recentList" class="recent-list">
+          <div class="loading">Loading...</div>
+        </div>
+      </div>
+    </div>
+    
+    <!-- Settings View -->
+    <div id="settingsView" class="view hidden">
+      <div class="settings-header">
+        <button id="backBtn" class="icon-btn">←</button>
+        <h2>Settings</h2>
+      </div>
+      
+      <div class="settings-content">
+        <div class="setting-item">
+          <label>Authentication Status</label>
+          <div id="authStatus" class="auth-status">
+            <span class="status-indicator"></span>
+            <span class="status-text">Not authenticated</span>
+          </div>
+          <button id="authBtn" class="secondary-btn">Login with Thoughtstream</button>
+        </div>
+        
+        <div class="setting-item">
+          <label>Keyboard Shortcut</label>
+          <div class="shortcut-display">Cmd+Shift+P (Mac) / Ctrl+Shift+P</div>
+        </div>
+        
+        <div class="setting-item">
+          <label>Import from Pocket</label>
+          <div class="import-section">
+            <div class="import-instructions">
+              Export your Pocket data from <a href="https://getpocket.com/export" target="_blank">getpocket.com/export</a>
+            </div>
+            <input 
+              type="file" 
+              id="importFile" 
+              accept=".html" 
+              style="display: none"
+            />
+            <button id="importBtn" class="secondary-btn">Choose Export File</button>
+            <div id="importProgress" class="import-progress hidden"></div>
+          </div>
+        </div>
+        
+        <div class="setting-item">
+          <label>About</label>
+          <div class="about-text">
+            TsPocket v1.0.0<br>
+            Save articles to Thoughtstream with a Pocket-like experience.
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  
+  <script type="module" src="popup.js"></script>
+</body>
+</html>
