@@ -1,17 +1,4 @@
 // Background script for TsPocket Chrome Extension
-console.log('🚀 [BACKGROUND] Service worker starting...');
-
-// Global error handler to prevent service worker crashes
-self.addEventListener('error', (event) => {
-  console.error('❌ [BACKGROUND] Global error:', event.error);
-  event.preventDefault();
-});
-
-self.addEventListener('unhandledrejection', (event) => {
-  console.error('❌ [BACKGROUND] Unhandled promise rejection:', event.reason);
-  event.preventDefault();
-});
-
 import { loginWithAuth0, logout, isLoggedIn } from './auth.js';
 import CONFIG from './config.js';
 import apiClient, { TsPocketError, AuthError, NetworkError, ContentExtractionError } from './api-client.js';
@@ -19,6 +6,17 @@ import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
 import offlineQueue from './offline-queue.js';
 import logger from './logger.js';
+
+// Global error handler to prevent service worker crashes
+self.addEventListener('error', (event) => {
+  logger.error('Global error', { error: event.error });
+  event.preventDefault();
+});
+
+self.addEventListener('unhandledrejection', (event) => {
+  logger.error('Unhandled promise rejection', { reason: event.reason });
+  event.preventDefault();
+});
 
 // Track initialization state
 let isInitialized = false;
@@ -33,31 +31,6 @@ const log = logger;
 // Log immediately when script loads
 log.info('Background script loaded');
 
-// Keep service worker alive for debugging
-// This pings the service worker every 20 seconds to prevent it from going inactive
-let keepAliveInterval;
-
-const startKeepAlive = () => {
-  // Clear any existing interval
-  if (keepAliveInterval) clearInterval(keepAliveInterval);
-  
-  // Ping every 20 seconds
-  keepAliveInterval = setInterval(() => {
-    chrome.runtime.getPlatformInfo(() => {
-      // Just need to make a call to keep service worker active
-      if (chrome.runtime.lastError) {
-        // Service worker is shutting down
-        clearInterval(keepAliveInterval);
-      }
-    });
-  }, 20000);
-};
-
-// Start keep-alive immediately
-startKeepAlive();
-
-// Restart keep-alive when service worker wakes up
-chrome.runtime.onStartup.addListener(startKeepAlive);
 
 // Initialize extension on startup and install
 chromeApi.runtime.onStartup.addListener(() => {
@@ -84,12 +57,12 @@ function ensureInitialized() {
 
 async function initializeExtension() {
   if (isInitialized) {
-    console.log('Extension already initialized');
+    log.debug('Extension already initialized');
     return;
   }
   
   try {
-    console.log('Initializing TsPocket extension...');
+    log.info('Initializing TsPocket extension');
     
     // Create context menu (remove existing first to avoid duplicates)
     try {
@@ -99,22 +72,22 @@ async function initializeExtension() {
         title: 'Save to TsPocket',
         contexts: ['page', 'selection', 'link']
       });
-      console.log('Context menu created');
+      log.info('Context menu created');
     } catch (error) {
-      console.error('Failed to create context menu:', error);
+      log.error('Failed to create context menu:', error);
     }
     
     // Verify storage is accessible
     try {
       const test = await storageService.get('test');
-      console.log('Storage service is operational');
+      log.info('Storage service is operational');
     } catch (error) {
-      console.error('Storage service check failed:', error);
+      log.error('Storage service check failed:', error);
     }
     
     // Check authentication status
     const isAuthenticated = await isLoggedIn();
-    console.log('Authentication status:', isAuthenticated);
+    log.info('Authentication status:', isAuthenticated);
     
     // Check for queued offline saves
     const queueStatus = await offlineQueue.getQueueStatus();
@@ -125,9 +98,9 @@ async function initializeExtension() {
     }
     
     isInitialized = true;
-    console.log('TsPocket extension initialized successfully');
+    log.info('TsPocket extension initialized successfully');
   } catch (error) {
-    console.error('Extension initialization failed:', error);
+    log.error('Extension initialization failed:', error);
     isInitialized = false;
     initializationPromise = null; // Allow retry
     throw error;
@@ -143,7 +116,7 @@ function generateUUID() {
       return v.toString(16);
     });
   } catch (error) {
-    console.error('UUID generation failed:', error);
+    log.error('UUID generation failed:', error);
     throw error;
   }
 }
@@ -185,7 +158,7 @@ async function extractArticleContent(tab) {
           );
         }
       } catch (injectError) {
-        console.error('Failed to inject content script:', injectError);
+        log.error('Failed to inject content script:', injectError);
         throw new ContentExtractionError(
           'Failed to inject content extraction script',
           { url: tab.url, error: injectError.message }
@@ -193,12 +166,12 @@ async function extractArticleContent(tab) {
       }
     }
     
-    console.error('Failed to extract content:', error);
+    log.error('Failed to extract content:', error);
     
     // TODO: Firecrawl API integration for enhanced extraction
     // Check if Firecrawl is configured
     if (CONFIG.firecrawl.apiKey) {
-      console.log('Firecrawl API key configured but integration not implemented yet');
+      log.info('Firecrawl API key configured but integration not implemented yet');
     }
     
     // Re-throw as ContentExtractionError with context
@@ -303,9 +276,6 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
     expansionSetting: 'auto'
   };
   
-  // Log the note data before sending
-  console.log('📝 [BACKGROUND] Note data being sent:', noteData);
-  console.log('📝 [BACKGROUND] Note content preview:', noteContent.substring(0, 200) + '...');
   
   try {
     // Save to Thoughtstream
@@ -666,7 +636,7 @@ async function handleMessage(request, sender, sendResponse) {
 chromeApi.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'saveToTsPocket') {
     handleSave(tab).catch(error => {
-      console.error('Context menu save failed:', error);
+      log.error('Context menu save failed:', error);
     });
   }
 });
@@ -678,7 +648,7 @@ chromeApi.commands.onCommand.addListener(async (command) => {
       const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
       await handleSave(tabs[0]);
     } catch (error) {
-      console.error('Keyboard shortcut save failed:', error);
+      log.error('Keyboard shortcut save failed:', error);
     }
   }
 });
@@ -726,7 +696,7 @@ async function handlePocketImport(articles) {
         
         imported++;
       } catch (error) {
-        console.error('Failed to import article:', article.url, error);
+        log.error('Failed to import article:', article.url, error);
         failed++;
       }
     });
