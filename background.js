@@ -202,16 +202,26 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
   };
   
   // Log the note data before sending
-  console.log('📝 Note data being sent:', noteData);
+  console.log('📝 [BACKGROUND] Note data being sent:', noteData);
+  console.log('📝 [BACKGROUND] Note content preview:', noteContent.substring(0, 200) + '...');
   
-  // Save to Thoughtstream
-  const response = await apiClient.post('/notes', { notes: [noteData] });
-  
-  return { noteId, response };
+  try {
+    // Save to Thoughtstream
+    console.log('🌐 [BACKGROUND] Sending request to API...');
+    const response = await apiClient.post('/notes', { notes: [noteData] });
+    console.log('✅ [BACKGROUND] API response received:', response);
+    
+    return { noteId, response };
+  } catch (apiError) {
+    console.error('❌ [BACKGROUND] API request failed:', apiError);
+    throw apiError;
+  }
 }
 
 // Handle save action
 async function handleSave(tab, tags = []) {
+  console.log('🚀 [BACKGROUND] Starting save process for tab:', tab.url);
+  
   try {
     // Show saving badge
     await chromeApi.updateBadge(tab.id, '...', '#4CAF50', 0);
@@ -220,9 +230,14 @@ async function handleSave(tab, tags = []) {
     
     try {
       // Try to extract article content
+      console.log('📊 [BACKGROUND] Attempting content extraction...');
       articleData = await extractArticleContent(tab);
+      console.log('✅ [BACKGROUND] Content extracted successfully:', {
+        title: articleData.title,
+        contentLength: articleData.content?.length
+      });
     } catch (extractError) {
-      console.error('Content extraction failed:', extractError);
+      console.error('❌ [BACKGROUND] Content extraction failed:', extractError);
       
       // If content extraction fails, provide fallback data with user notification
       if (extractError instanceof ContentExtractionError) {

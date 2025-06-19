@@ -15,11 +15,14 @@ class StorageService {
    * @returns {Promise<Object>} Retrieved data
    */
   async get(keys) {
+    console.log('💾 [STORAGE] Getting keys:', keys);
     return new Promise((resolve, reject) => {
       chrome.storage.local.get(keys, (result) => {
         if (chrome.runtime.lastError) {
+          console.error('❌ [STORAGE] Get error:', chrome.runtime.lastError);
           reject(new Error(`Storage get error: ${chrome.runtime.lastError.message}`));
         } else {
+          console.log('✅ [STORAGE] Retrieved:', Object.keys(result));
           resolve(result);
         }
       });

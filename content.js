@@ -353,11 +353,21 @@ function extractImages(element) {
 
 // Listen for extraction requests from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  console.log('🔍 [CONTENT] Received message:', request);
+  
   if (request.action === 'extractContent') {
     try {
+      console.log('📄 [CONTENT] Starting content extraction...');
       const content = extractArticleContent();
+      console.log('✅ [CONTENT] Extraction successful:', {
+        title: content.title,
+        contentLength: content.content?.length,
+        hasDescription: !!content.description,
+        hasAuthor: !!content.author
+      });
       sendResponse({ success: true, content });
     } catch (error) {
+      console.error('❌ [CONTENT] Extraction failed:', error);
       sendResponse({ success: false, error: error.message });
     }
   }

@@ -94,6 +94,13 @@ export class ApiClient {
   }
 
   async fetchWithTimeout(url, options = {}, timeout = this.timeout) {
+    console.log('🌐 [API] Making request:', {
+      url,
+      method: options.method || 'GET',
+      headers: options.headers,
+      hasBody: !!options.body
+    });
+    
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeout);
     
@@ -103,9 +110,17 @@ export class ApiClient {
         signal: controller.signal
       });
       clearTimeout(id);
+      
+      console.log('📡 [API] Response received:', {
+        status: response.status,
+        statusText: response.statusText,
+        headers: Object.fromEntries(response.headers.entries())
+      });
+      
       return response;
     } catch (error) {
       clearTimeout(id);
+      console.error('❌ [API] Fetch error:', error);
       if (error.name === 'AbortError') {
         throw new NetworkError('Request timeout', { url, timeout });
       }

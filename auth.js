@@ -286,13 +286,26 @@ export async function isTokenExpired() {
 
 // Get valid access token
 export async function getValidAccessToken() {
+  console.log('🔐 [AUTH] Getting valid access token...');
+  
   const expired = await isTokenExpired();
+  console.log('🔍 [AUTH] Token expired?', expired);
   
   if (expired) {
-    return await refreshAccessToken();
+    console.log('⏰ [AUTH] Token expired, refreshing...');
+    try {
+      const newToken = await refreshAccessToken();
+      console.log('✅ [AUTH] Token refreshed successfully');
+      return newToken;
+    } catch (error) {
+      console.error('❌ [AUTH] Token refresh failed:', error);
+      throw error;
+    }
   }
   
-  return await storageService.getAuthToken();
+  const token = await storageService.getAuthToken();
+  console.log('✅ [AUTH] Using existing token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+  return token;
 }
 
 // Logout
