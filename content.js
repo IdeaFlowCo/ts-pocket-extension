@@ -391,22 +391,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log('🔍 [CONTENT] Received message:', request);
   
   if (request.action === 'extractContent') {
-    try {
-      console.log('📄 [CONTENT] Starting content extraction...');
-      const content = extractArticleContent();
-      console.log('✅ [CONTENT] Extraction successful:', {
-        title: content.title,
-        contentLength: content.content?.length,
-        hasDescription: !!content.description,
-        hasAuthor: !!content.author
-      });
-      sendResponse({ success: true, content });
-    } catch (error) {
-      console.error('❌ [CONTENT] Extraction failed:', error);
-      sendResponse({ success: false, error: error.message });
-    }
+    // Use async IIFE to handle the response properly
+    (async () => {
+      try {
+        console.log('📄 [CONTENT] Starting content extraction...');
+        const content = extractArticleContent();
+        console.log('✅ [CONTENT] Extraction successful:', {
+          title: content.title,
+          contentLength: content.content?.length,
+          hasDescription: !!content.description,
+          hasAuthor: !!content.author
+        });
+        sendResponse({ success: true, content });
+      } catch (error) {
+        console.error('❌ [CONTENT] Extraction failed:', error);
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Keep message channel open for async response
   }
-  return true; // Keep message channel open for async response
 });
 
 // Auto-detect when to show save button (optional enhancement)
