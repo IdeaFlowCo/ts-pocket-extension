@@ -214,18 +214,38 @@ async function extractArticleContent(tab) {
 async function saveToThoughtstream(articleData, tags = []) {
   await debugLog('saveToThoughtstream called');
   
-  const noteId = generateUUID();
-  const timestamp = new Date().toISOString();
-  
-  // Get user ID from storage
-  await debugLog('Getting user info from storage');
-  const { userId } = await storageService.getUserInfo();
-  await debugLog('User ID from storage', { hasUserId: !!userId });
-  
-  if (!userId) {
-    await debugLog('No userId found - throwing error');
-    throw new Error('User ID not found. Please login again.');
-  }
+  try {
+    const noteId = generateUUID();
+    await debugLog('Generated noteId', { noteId });
+    
+    const timestamp = new Date().toISOString();
+    await debugLog('Generated timestamp', { timestamp });
+    
+    // Get user ID from storage
+    await debugLog('Getting user info from storage');
+    let userId;
+    try {
+      const userInfo = await storageService.getUserInfo();
+      userId = userInfo.userId;
+      await debugLog('getUserInfo returned', { 
+        hasUserId: !!userId, 
+        hasUserInfo: !!userInfo,
+        userInfoKeys: userInfo ? Object.keys(userInfo) : []
+      });
+    } catch (error) {
+      await debugLog('getUserInfo failed', { 
+        error: error.message,
+        stack: error.stack 
+      });
+      throw error;
+    }
+    
+    await debugLog('User ID from storage', { hasUserId: !!userId });
+    
+    if (!userId) {
+      await debugLog('No userId found - throwing error');
+      throw new Error('User ID not found. Please login again.');
+    }
   
   // Format tags as hashtags
   const hashtagString = tags.length > 0 
@@ -303,6 +323,15 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
       details: apiError.details
     });
     throw apiError;
+  }
+  
+  } catch (error) {
+    await debugLog('saveToThoughtstream failed with unexpected error', {
+      error: error.message,
+      stack: error.stack,
+      name: error.name
+    });
+    throw error;
   }
 }
 
@@ -519,11 +548,23 @@ async function handleMessage(request, sender, sendResponse) {
   if (request.action === 'save') {
     (async () => {
       try {
+        await debugLog('Save action - getting active tab');
         const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
+        await debugLog('Active tab found', { url: tabs[0]?.url });
+        
         const tags = request.tags || [];
         const result = await handleSave(tabs[0], tags);
+        
+        await debugLog('handleSave completed, sending response', { 
+          success: result.success,
+          hasNoteId: !!result.noteId 
+        });
         sendResponse(result);
       } catch (error) {
+        await debugLog('Save action failed', { 
+          error: error.message,
+          stack: error.stack 
+        });
         sendResponse({ success: false, error: error.message });
       }
     })();

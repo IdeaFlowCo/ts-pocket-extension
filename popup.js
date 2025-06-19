@@ -330,6 +330,15 @@ async function handleQuickSave() {
     });
     
     console.log('Save response:', response);
+    
+    if (!response) {
+      console.error('No response received from background script');
+      showStatus('No response from extension', 'error');
+      quickSaveBtn.disabled = false;
+      quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Thoughtstream</span>';
+      return;
+    }
+    
     if (response && response.success) {
       lastSavedNoteId = response.noteId;
       
