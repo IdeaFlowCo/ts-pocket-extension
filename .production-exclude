@@ -1,0 +1,8 @@
+# Files to exclude from production build
+debug.html
+debug.js
+*.log
+.DS_Store
+
+# When creating production build, run:
+# zip -r tspocket.zip . -x@.production-exclude

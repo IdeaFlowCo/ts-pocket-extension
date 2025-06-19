@@ -247,11 +247,20 @@ function setupEventListeners() {
   // Import file handler
   importFile.addEventListener('change', handlePocketImport);
   
-  // Debug button
+  // Debug button - only show in development
   const debugBtn = document.getElementById('debugBtn');
   const debugInfo = document.getElementById('debugInfo');
+  const debugSection = debugBtn?.closest('.setting-item');
   
-  if (debugBtn) {
+  // Check if running in development
+  const IS_DEV = !('update_url' in chrome.runtime.getManifest());
+  
+  // Hide debug section in production
+  if (debugSection && !IS_DEV) {
+    debugSection.style.display = 'none';
+  }
+  
+  if (debugBtn && IS_DEV) {
     debugBtn.addEventListener('click', async () => {
       try {
         // Toggle debug info visibility
