@@ -196,23 +196,137 @@ function cleanContent(element) {
   return element;
 }
 
-// Extract clean text
+// Extract formatted text with structure preservation (80/20 approach)
 function extractText(element) {
-  // Get text content and clean it up
-  let text = element.textContent || '';
-  
-  // Clean up whitespace
-  text = text.replace(/\s+/g, ' ');
-  text = text.replace(/\n{3,}/g, '\n\n');
-  text = text.trim();
-  
-  // Limit length
+  const blocks = [];
   const maxLength = 50000;
-  if (text.length > maxLength) {
-    text = text.substring(0, maxLength) + '...';
+  let currentLength = 0;
+  
+  // Walk through the DOM and extract structured content
+  const walker = document.createTreeWalker(
+    element,
+    NodeFilter.SHOW_ELEMENT,
+    {
+      acceptNode: (node) => {
+        // Skip hidden elements
+        const style = window.getComputedStyle(node);
+        if (style.display === 'none' || style.visibility === 'hidden') {
+          return NodeFilter.FILTER_REJECT;
+        }
+        
+        // Accept content elements
+        const tag = node.tagName.toLowerCase();
+        if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'blockquote', 'pre'].includes(tag)) {
+          return NodeFilter.FILTER_ACCEPT;
+        }
+        
+        return NodeFilter.FILTER_SKIP;
+      }
+    }
+  );
+  
+  let node;
+  const processedNodes = new Set();
+  
+  while ((node = walker.nextNode()) && currentLength < maxLength) {
+    // Skip if we've already processed this node (nested elements)
+    if (processedNodes.has(node)) continue;
+    
+    const tag = node.tagName.toLowerCase();
+    let text = '';
+    
+    switch (tag) {
+      case 'h1':
+      case 'h2':
+      case 'h3':
+      case 'h4':
+      case 'h5':
+      case 'h6':
+        text = `${'#'.repeat(parseInt(tag[1]))} ${node.textContent.trim()}\n\n`;
+        processedNodes.add(node);
+        break;
+        
+      case 'p':
+        const content = node.textContent.trim();
+        if (content) {
+          text = `${content}\n\n`;
+          processedNodes.add(node);
+        }
+        break;
+        
+      case 'ul':
+      case 'ol':
+        const items = Array.from(node.querySelectorAll(':scope > li'));
+        if (items.length > 0) {
+          const listText = items.map((li, index) => {
+            processedNodes.add(li);
+            const prefix = tag === 'ul' ? '• ' : `${index + 1}. `;
+            return `${prefix}${li.textContent.trim()}`;
+          }).join('\n');
+          text = `${listText}\n\n`;
+          processedNodes.add(node);
+        }
+        break;
+        
+      case 'blockquote':
+        const quoteText = node.textContent.trim();
+        if (quoteText) {
+          text = `> ${quoteText.replace(/\n/g, '\n> ')}\n\n`;
+          processedNodes.add(node);
+        }
+        break;
+        
+      case 'pre':
+        // Preserve code formatting
+        const codeElement = node.querySelector('code');
+        const codeText = (codeElement || node).textContent;
+        const language = detectCodeLanguage(node, codeElement);
+        text = `\`\`\`${language}\n${codeText}\n\`\`\`\n\n`;
+        processedNodes.add(node);
+        if (codeElement) processedNodes.add(codeElement);
+        break;
+    }
+    
+    if (text) {
+      blocks.push(text);
+      currentLength += text.length;
+    }
   }
   
-  return text;
+  // Join all blocks and clean up excessive newlines
+  let result = blocks.join('').trim();
+  result = result.replace(/\n{4,}/g, '\n\n\n'); // Max 3 newlines
+  
+  if (result.length > maxLength) {
+    result = result.substring(0, maxLength) + '...';
+  }
+  
+  return result;
+}
+
+// Helper function to detect code language
+function detectCodeLanguage(preElement, codeElement) {
+  // Check class names for language hints
+  const element = codeElement || preElement;
+  const className = element.className || '';
+  
+  // Common patterns: language-js, lang-python, hljs-javascript, etc.
+  const langMatch = className.match(/(?:language-|lang-|hljs-)(\w+)/);
+  if (langMatch) return langMatch[1];
+  
+  // Check data attributes
+  const dataLang = element.dataset.lang || element.dataset.language;
+  if (dataLang) return dataLang;
+  
+  // Common language detection by content patterns
+  const content = element.textContent;
+  if (content.includes('function') && content.includes('{')) return 'javascript';
+  if (content.includes('def ') && content.includes(':')) return 'python';
+  if (content.includes('<?php')) return 'php';
+  if (content.includes('<html') || content.includes('</div>')) return 'html';
+  if (content.includes('SELECT') && content.includes('FROM')) return 'sql';
+  
+  return ''; // No language specified
 }
 
 // Extract images
