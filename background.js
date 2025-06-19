@@ -33,10 +33,31 @@ const log = logger;
 // Log immediately when script loads
 log.info('Background script loaded');
 
-// Keep service worker alive (helps with debugging)
-const keepAlive = () => setInterval(chrome.runtime.getPlatformInfo, 20e3);
-chrome.runtime.onStartup.addListener(keepAlive);
-keepAlive();
+// Keep service worker alive for debugging
+// This pings the service worker every 20 seconds to prevent it from going inactive
+let keepAliveInterval;
+
+const startKeepAlive = () => {
+  // Clear any existing interval
+  if (keepAliveInterval) clearInterval(keepAliveInterval);
+  
+  // Ping every 20 seconds
+  keepAliveInterval = setInterval(() => {
+    chrome.runtime.getPlatformInfo(() => {
+      // Just need to make a call to keep service worker active
+      if (chrome.runtime.lastError) {
+        // Service worker is shutting down
+        clearInterval(keepAliveInterval);
+      }
+    });
+  }, 20000);
+};
+
+// Start keep-alive immediately
+startKeepAlive();
+
+// Restart keep-alive when service worker wakes up
+chrome.runtime.onStartup.addListener(startKeepAlive);
 
 // Initialize extension on startup and install
 chromeApi.runtime.onStartup.addListener(() => {
