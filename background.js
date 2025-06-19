@@ -218,6 +218,11 @@ ${articleData.author ? `By ${articleData.author}\n` : ''}${articleData.published
 URL: ${articleData.url}
 Domain: ${articleData.domain || new URL(articleData.url).hostname}
 Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
+
+  await debugLog('Note content formatted', {
+    preview: noteContent.substring(0, 100) + '...',
+    fullLength: noteContent.length
+  });
   
   // Create note matching the exact structure from the API
   const noteData = {
@@ -251,13 +256,27 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
   
   try {
     // Save to Thoughtstream
-    console.log('🌐 [BACKGROUND] Sending request to API...');
+    await debugLog('Sending to API', { 
+      endpoint: '/notes',
+      noteId: noteId,
+      contentLength: noteContent.length 
+    });
+    
     const response = await apiClient.post('/notes', { notes: [noteData] });
-    console.log('✅ [BACKGROUND] API response received:', response);
+    
+    await debugLog('API response received', { 
+      status: response?.status,
+      data: response?.data,
+      error: response?.error 
+    });
     
     return { noteId, response };
   } catch (apiError) {
-    console.error('❌ [BACKGROUND] API request failed:', apiError);
+    await debugLog('API request failed', {
+      error: apiError.message,
+      code: apiError.code,
+      details: apiError.details
+    });
     throw apiError;
   }
 }
