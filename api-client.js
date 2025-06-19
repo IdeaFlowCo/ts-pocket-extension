@@ -169,7 +169,7 @@ export class ApiClient {
         }
 
         const url = `${this.baseUrl}${path}`;
-        console.log(`🌐 Full URL: ${url}`);
+        console.log(`🌐 [API] Full URL: ${url}`);
         
         const response = await this.fetchWithTimeout(url, requestOptions);
         
