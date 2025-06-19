@@ -18,6 +18,7 @@ import apiClient, { TsPocketError, AuthError, NetworkError, ContentExtractionErr
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
 import offlineQueue from './offline-queue.js';
+import logger from './logger.js';
 
 // Track initialization state
 let isInitialized = false;
@@ -26,51 +27,11 @@ let initializationPromise = null;
 // Production-safe logging
 const IS_DEV = !('update_url' in chrome.runtime.getManifest());
 
-const debugLog = async (message, data = {}) => {
-  const timestamp = new Date().toISOString();
-  
-  // Always log to console first (before any async operations)
-  console.log(`[${timestamp}] ${message}`, data);
-  
-  // Try to store logs, but don't let failures break the app
-  try {
-    // Only store debug logs if explicitly enabled or in dev mode
-    const storageResult = await Promise.race([
-      storageService.get('debugMode'),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Storage timeout')), 1000))
-    ]);
-    
-    const { debugMode } = storageResult;
-    if (!IS_DEV && !debugMode) return;
-    
-    const logEntry = { timestamp, message, data };
-    
-    // Store last 50 debug logs
-    const logsResult = await Promise.race([
-      storageService.get('debugLogs'),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Storage timeout')), 1000))
-    ]);
-    
-    const { debugLogs = [] } = logsResult;
-    debugLogs.push(logEntry);
-    if (debugLogs.length > 50) {
-      debugLogs.splice(0, debugLogs.length - 50);
-    }
-    
-    await Promise.race([
-      storageService.set({ debugLogs }),
-      new Promise((_, reject) => setTimeout(() => reject(new Error('Storage timeout')), 1000))
-    ]);
-  } catch (e) {
-    // Don't re-log to avoid infinite loop, but ensure we don't crash
-    if (IS_DEV) {
-      console.error('Failed to store debug log:', e.message);
-    }
-  }
-};
+// Use the new logger
+const log = logger;
 
 // Log immediately when script loads
-debugLog('Background script loaded');
+log.info('Background script loaded');
 
 // Keep service worker alive (helps with debugging)
 const keepAlive = () => setInterval(chrome.runtime.getPlatformInfo, 20e3);
@@ -79,17 +40,17 @@ keepAlive();
 
 // Initialize extension on startup and install
 chromeApi.runtime.onStartup.addListener(() => {
-  debugLog('Extension startup event');
+  log.info('Extension startup event');
   ensureInitialized();
 });
 
 chromeApi.runtime.onInstalled.addListener((details) => {
-  debugLog('Extension installed/updated', { reason: details.reason });
+  log.info('Extension installed/updated', { reason: details.reason });
   ensureInitialized();
 });
 
 // Also initialize immediately
-debugLog('Initializing extension...');
+log.info('Initializing extension...');
 ensureInitialized();
 
 // Ensure initialization happens only once
@@ -137,7 +98,7 @@ async function initializeExtension() {
     // Check for queued offline saves
     const queueStatus = await offlineQueue.getQueueStatus();
     if (queueStatus.count > 0) {
-      await debugLog('Found offline queue items', { count: queueStatus.count });
+      log.info('Found offline queue items', { count: queueStatus.count });
       // Start processing queue
       offlineQueue.processQueue();
     }
@@ -233,43 +194,43 @@ async function extractArticleContent(tab) {
 
 // Save article to Thoughtstream
 async function saveToThoughtstream(articleData, tags = []) {
-  await debugLog('saveToThoughtstream called', {
+  log.info('saveToThoughtstream called', {
     hasArticleData: !!articleData,
     articleDataKeys: articleData ? Object.keys(articleData) : [],
     tagsLength: tags?.length || 0
   });
   
   try {
-    await debugLog('About to generate UUID');
+    log.info('About to generate UUID');
     const noteId = generateUUID();
-    await debugLog('Generated noteId', { noteId });
+    log.info('Generated noteId', { noteId });
     
     const timestamp = new Date().toISOString();
-    await debugLog('Generated timestamp', { timestamp });
+    log.info('Generated timestamp', { timestamp });
     
     // Get user ID from storage
-    await debugLog('Getting user info from storage');
+    log.info('Getting user info from storage');
     let userId;
     try {
       const userInfo = await storageService.getUserInfo();
       userId = userInfo.userId;
-      await debugLog('getUserInfo returned', { 
+      log.info('getUserInfo returned', { 
         hasUserId: !!userId, 
         hasUserInfo: !!userInfo,
         userInfoKeys: userInfo ? Object.keys(userInfo) : []
       });
     } catch (error) {
-      await debugLog('getUserInfo failed', { 
+      log.info('getUserInfo failed', { 
         error: error.message,
         stack: error.stack 
       });
       throw error;
     }
     
-    await debugLog('User ID from storage', { hasUserId: !!userId });
+    log.info('User ID from storage', { hasUserId: !!userId });
     
     if (!userId) {
-      await debugLog('No userId found - throwing error');
+      log.info('No userId found - throwing error');
       throw new Error('User ID not found. Please login again.');
     }
   
@@ -290,7 +251,7 @@ URL: ${articleData.url}
 Domain: ${articleData.domain || new URL(articleData.url).hostname}
 Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
 
-  await debugLog('Note content formatted', {
+  log.info('Note content formatted', {
     preview: noteContent.substring(0, 100) + '...',
     fullLength: noteContent.length
   });
@@ -327,7 +288,7 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
   
   try {
     // Save to Thoughtstream
-    await debugLog('Sending to API', { 
+    log.info('Sending to API', { 
       endpoint: '/notes',
       noteId: noteId,
       contentLength: noteContent.length 
@@ -335,7 +296,7 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
     
     const response = await apiClient.post('/notes', { notes: [noteData] });
     
-    await debugLog('API response received', { 
+    log.info('API response received', { 
       status: response?.status,
       data: response?.data,
       error: response?.error 
@@ -343,7 +304,7 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
     
     return { noteId, response };
   } catch (apiError) {
-    await debugLog('API request failed', {
+    log.info('API request failed', {
       error: apiError.message,
       code: apiError.code,
       details: apiError.details
@@ -352,7 +313,7 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
   }
   
   } catch (error) {
-    await debugLog('saveToThoughtstream failed with unexpected error', {
+    log.info('saveToThoughtstream failed with unexpected error', {
       error: error.message,
       stack: error.stack,
       name: error.name
@@ -363,7 +324,7 @@ Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
 
 // Handle save action
 async function handleSave(tab, tags = []) {
-  await debugLog('Starting save process', { url: tab.url, tabId: tab.id });
+  log.info('Starting save process', { url: tab.url, tabId: tab.id });
   
   try {
     // Show saving badge
@@ -373,16 +334,16 @@ async function handleSave(tab, tags = []) {
     
     try {
       // Try to extract article content
-      await debugLog('Attempting content extraction');
+      log.info('Attempting content extraction');
       articleData = await extractArticleContent(tab);
-      await debugLog('Content extracted successfully', {
+      log.info('Content extracted successfully', {
         title: articleData.title,
         contentLength: articleData.content?.length,
         hasAuthor: !!articleData.author,
         hasDescription: !!articleData.description
       });
     } catch (extractError) {
-      await debugLog('Content extraction failed', { 
+      log.info('Content extraction failed', { 
         error: extractError.message,
         type: extractError.name 
       });
@@ -431,14 +392,14 @@ async function handleSave(tab, tags = []) {
     }
     
     // Save to Thoughtstream with tags
-    await debugLog('Calling saveToThoughtstream', { 
+    log.info('Calling saveToThoughtstream', { 
       hasContent: !!articleData.content,
       tagsCount: tags.length 
     });
     
     const result = await saveToThoughtstream(articleData, tags);
     
-    await debugLog('Save completed', { noteId: result.noteId });
+    log.info('Save completed', { noteId: result.noteId });
     
     // Store in local history
     const savedArticles = await storageService.getSavedArticles();
@@ -465,7 +426,7 @@ async function handleSave(tab, tags = []) {
       warning: articleData.extractionFailed ? 'Saved with limited content due to extraction failure' : null
     };
   } catch (error) {
-    await debugLog('Failed to save article', {
+    log.info('Failed to save article', {
       error: error.message,
       type: error.name
     });
@@ -498,7 +459,7 @@ async function handleSave(tab, tags = []) {
           warning: 'Saved offline - will sync when connected'
         };
       } catch (queueError) {
-        await debugLog('Failed to queue offline', { error: queueError.message });
+        log.info('Failed to queue offline', { error: queueError.message });
         // Fall through to show error
       }
     }
@@ -556,38 +517,47 @@ Saved: ${new Date(article.savedAt).toLocaleString()}`;
 
 // Message handler with initialization check
 chromeApi.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  debugLog('Message received', { action: request.action, from: sender.tab?.url || 'extension' });
+  log.info('Message received', { action: request.action, from: sender.tab?.url || 'extension' });
+  
+  // Handle log requests immediately (don't need initialization)
+  if (request.action === 'getLogs') {
+    sendResponse({ 
+      success: true, 
+      logs: logger.getLogs(request.filter || {})
+    });
+    return true;
+  }
   
   // Ensure extension is initialized before handling messages
   ensureInitialized()
     .then(() => handleMessage(request, sender, sendResponse))
     .catch(error => {
-      debugLog('Failed to initialize before handling message', { error: error.message });
+      log.error('Failed to initialize before handling message', { error: error.message });
       sendResponse({ success: false, error: 'Extension initialization failed' });
     });
   return true; // Always return true for async response
 });
 
 async function handleMessage(request, sender, sendResponse) {
-  await debugLog('Handling message', { action: request.action });
+  log.info('Handling message', { action: request.action });
   
   if (request.action === 'save') {
     (async () => {
       try {
-        await debugLog('Save action - getting active tab');
+        log.info('Save action - getting active tab');
         const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
-        await debugLog('Active tab found', { url: tabs[0]?.url });
+        log.info('Active tab found', { url: tabs[0]?.url });
         
         const tags = request.tags || [];
         const result = await handleSave(tabs[0], tags);
         
-        await debugLog('handleSave completed, sending response', { 
+        log.info('handleSave completed, sending response', { 
           success: result.success,
           hasNoteId: !!result.noteId 
         });
         sendResponse(result);
       } catch (error) {
-        await debugLog('Save action failed', { 
+        log.info('Save action failed', { 
           error: error.message,
           stack: error.stack 
         });

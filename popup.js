@@ -270,9 +270,12 @@ function setupEventListeners() {
           return;
         }
         
-        // Load debug logs from storage
-        const result = await chrome.storage.local.get(['debugLogs', 'authToken', 'userId']);
-        const logs = result.debugLogs || [];
+        // Get logs from background script
+        const response = await chrome.runtime.sendMessage({ action: 'getLogs' });
+        const logs = response.logs || [];
+        
+        // Get auth status
+        const authResult = await chrome.storage.local.get(['authToken', 'userId']);
         
         // Show debug info
         debugInfo.classList.remove('hidden');
@@ -280,15 +283,24 @@ function setupEventListeners() {
         
         // Format logs
         let html = `<div style="margin-bottom: 10px;">
-          <strong>Auth:</strong> ${result.authToken ? '✅' : '❌'} 
-          <strong>UserID:</strong> ${result.userId || 'None'}
+          <strong>Auth:</strong> ${authResult.authToken ? '✅' : '❌'} 
+          <strong>UserID:</strong> ${authResult.userId || 'None'}
           <strong>Logs:</strong> ${logs.length}
         </div>`;
         
         // Show recent logs (newest first)
-        logs.slice(-10).reverse().forEach(log => {
-          const isError = log.message.includes('error') || log.message.includes('fail') || log.message.includes('❌');
-          html += `<div style="color: ${isError ? 'red' : 'black'}; margin-bottom: 5px;">
+        logs.slice(-20).reverse().forEach(log => {
+          const levelColors = {
+            'ERROR': 'red',
+            'WARN': 'orange',
+            'INFO': 'green',
+            'DEBUG': 'blue'
+          };
+          const color = levelColors[log.level] || 'black';
+          
+          html += `<div style="margin-bottom: 5px;">
+            <span style="color: ${color}; font-weight: bold;">[${log.level}]</span>
+            <span style="color: #666;">[${log.source}]</span>
             ${log.timestamp.split('T')[1].split('.')[0]} - ${log.message}
             ${log.data && Object.keys(log.data).length > 0 ? 
               `<br><span style="font-size: 11px; color: #666;">${JSON.stringify(log.data)}</span>` : ''}
@@ -296,7 +308,7 @@ function setupEventListeners() {
         });
         
         if (logs.length === 0) {
-          html += '<div>No debug logs found. Try saving an article.</div>';
+          html += '<div>No logs found. Try saving an article.</div>';
         }
         
         debugInfo.innerHTML = html;
