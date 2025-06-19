@@ -56,6 +56,11 @@ const debugLog = async (message, data = {}) => {
 // Log immediately when script loads
 debugLog('Background script loaded');
 
+// Keep service worker alive (helps with debugging)
+const keepAlive = () => setInterval(chrome.runtime.getPlatformInfo, 20e3);
+chrome.runtime.onStartup.addListener(keepAlive);
+keepAlive();
+
 // Initialize extension on startup and install
 chromeApi.runtime.onStartup.addListener(() => {
   debugLog('Extension startup event');
