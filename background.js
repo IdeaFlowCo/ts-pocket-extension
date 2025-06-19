@@ -187,13 +187,18 @@ async function extractArticleContent(tab) {
 
 // Save article to Thoughtstream
 async function saveToThoughtstream(articleData, tags = []) {
+  await debugLog('saveToThoughtstream called');
+  
   const noteId = generateUUID();
   const timestamp = new Date().toISOString();
   
   // Get user ID from storage
+  await debugLog('Getting user info from storage');
   const { userId } = await storageService.getUserInfo();
-  console.log('🔑 User ID from storage:', userId);
+  await debugLog('User ID from storage', { userId: userId ? `${userId.substring(0, 20)}...` : 'NONE' });
+  
   if (!userId) {
+    await debugLog('No userId found - throwing error');
     throw new Error('User ID not found. Please login again.');
   }
   
@@ -327,7 +332,14 @@ async function handleSave(tab, tags = []) {
     }
     
     // Save to Thoughtstream with tags
+    await debugLog('Calling saveToThoughtstream', { 
+      hasContent: !!articleData.content,
+      tagsCount: tags.length 
+    });
+    
     const result = await saveToThoughtstream(articleData, tags);
+    
+    await debugLog('Save completed', { noteId: result.noteId });
     
     // Store in local history
     const savedArticles = await storageService.getSavedArticles();
@@ -354,7 +366,11 @@ async function handleSave(tab, tags = []) {
       warning: articleData.extractionFailed ? 'Saved with limited content due to extraction failure' : null
     };
   } catch (error) {
-    console.error('Failed to save article:', error);
+    await debugLog('Failed to save article', {
+      error: error.message,
+      type: error.name,
+      stack: error.stack
+    });
     
     // TODO: Offline support is planned but not implemented yet.
     // Future implementation will:
