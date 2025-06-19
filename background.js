@@ -27,29 +27,45 @@ let initializationPromise = null;
 const IS_DEV = !('update_url' in chrome.runtime.getManifest());
 
 const debugLog = async (message, data = {}) => {
-  // Always log to console in dev
-  if (IS_DEV) {
-    const timestamp = new Date().toISOString();
-    console.log(`[${timestamp}] ${message}`, data);
-  }
-  
-  // Only store debug logs if explicitly enabled or in dev mode
-  const { debugMode } = await storageService.get('debugMode');
-  if (!IS_DEV && !debugMode) return;
-  
   const timestamp = new Date().toISOString();
-  const logEntry = { timestamp, message, data };
   
-  // Store last 50 debug logs
+  // Always log to console first (before any async operations)
+  console.log(`[${timestamp}] ${message}`, data);
+  
+  // Try to store logs, but don't let failures break the app
   try {
-    const { debugLogs = [] } = await storageService.get('debugLogs');
+    // Only store debug logs if explicitly enabled or in dev mode
+    const storageResult = await Promise.race([
+      storageService.get('debugMode'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Storage timeout')), 1000))
+    ]);
+    
+    const { debugMode } = storageResult;
+    if (!IS_DEV && !debugMode) return;
+    
+    const logEntry = { timestamp, message, data };
+    
+    // Store last 50 debug logs
+    const logsResult = await Promise.race([
+      storageService.get('debugLogs'),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Storage timeout')), 1000))
+    ]);
+    
+    const { debugLogs = [] } = logsResult;
     debugLogs.push(logEntry);
     if (debugLogs.length > 50) {
       debugLogs.splice(0, debugLogs.length - 50);
     }
-    await storageService.set({ debugLogs });
+    
+    await Promise.race([
+      storageService.set({ debugLogs }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Storage timeout')), 1000))
+    ]);
   } catch (e) {
-    console.error('Failed to store debug log:', e);
+    // Don't re-log to avoid infinite loop, but ensure we don't crash
+    if (IS_DEV) {
+      console.error('Failed to store debug log:', e.message);
+    }
   }
 };
 
@@ -138,11 +154,16 @@ async function initializeExtension() {
 
 // Helper function to generate UUID
 function generateUUID() {
-  return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-    const r = Math.random() * 16 | 0;
-    const v = c === 'x' ? r : (r & 0x3 | 0x8);
-    return v.toString(16);
-  });
+  try {
+    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
+      const r = Math.random() * 16 | 0;
+      const v = c === 'x' ? r : (r & 0x3 | 0x8);
+      return v.toString(16);
+    });
+  } catch (error) {
+    console.error('UUID generation failed:', error);
+    throw error;
+  }
 }
 
 
@@ -212,9 +233,14 @@ async function extractArticleContent(tab) {
 
 // Save article to Thoughtstream
 async function saveToThoughtstream(articleData, tags = []) {
-  await debugLog('saveToThoughtstream called');
+  await debugLog('saveToThoughtstream called', {
+    hasArticleData: !!articleData,
+    articleDataKeys: articleData ? Object.keys(articleData) : [],
+    tagsLength: tags?.length || 0
+  });
   
   try {
+    await debugLog('About to generate UUID');
     const noteId = generateUUID();
     await debugLog('Generated noteId', { noteId });
     
