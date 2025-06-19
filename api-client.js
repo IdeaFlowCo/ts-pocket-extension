@@ -2,6 +2,9 @@
 import CONFIG from './config.js';
 import { getValidAccessToken } from './auth.js';
 
+// Check if running in development
+const IS_DEV = !('update_url' in chrome.runtime.getManifest());
+
 // Custom error classes
 export class TsPocketError extends Error {
   constructor(message, code, details = {}) {
@@ -153,7 +156,9 @@ export class ApiClient {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         const token = await getValidAccessToken();
-        console.log(`🔐 Using auth token:`, token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+        if (IS_DEV) {
+          console.log(`🔐 Using auth token:`, token ? 'TOKEN_PRESENT' : 'NO TOKEN');
+        }
         
         const requestOptions = {
           method,

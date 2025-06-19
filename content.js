@@ -202,28 +202,36 @@ function extractText(element) {
   const maxLength = 50000;
   let currentLength = 0;
   
-  // Walk through the DOM and extract structured content
-  const walker = document.createTreeWalker(
-    element,
-    NodeFilter.SHOW_ELEMENT,
-    {
-      acceptNode: (node) => {
-        // Skip hidden elements
-        const style = window.getComputedStyle(node);
-        if (style.display === 'none' || style.visibility === 'hidden') {
-          return NodeFilter.FILTER_REJECT;
+  try {
+    // Walk through the DOM and extract structured content
+    const walker = document.createTreeWalker(
+      element,
+      NodeFilter.SHOW_ELEMENT,
+      {
+        acceptNode: (node) => {
+          try {
+            // Skip hidden elements - wrapped in try-catch for broken CSS
+            const style = window.getComputedStyle(node);
+            if (style.display === 'none' || style.visibility === 'hidden') {
+              return NodeFilter.FILTER_REJECT;
+            }
+          } catch (e) {
+            // If getComputedStyle fails, skip the node
+            return NodeFilter.FILTER_SKIP;
+          }
+          
+          // Accept content elements
+          const tag = node.tagName?.toLowerCase();
+          if (!tag) return NodeFilter.FILTER_SKIP;
+          
+          if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'blockquote', 'pre'].includes(tag)) {
+            return NodeFilter.FILTER_ACCEPT;
+          }
+          
+          return NodeFilter.FILTER_SKIP;
         }
-        
-        // Accept content elements
-        const tag = node.tagName.toLowerCase();
-        if (['h1', 'h2', 'h3', 'h4', 'h5', 'h6', 'p', 'ul', 'ol', 'blockquote', 'pre'].includes(tag)) {
-          return NodeFilter.FILTER_ACCEPT;
-        }
-        
-        return NodeFilter.FILTER_SKIP;
       }
-    }
-  );
+    );
   
   let node;
   const processedNodes = new Set();
@@ -256,15 +264,23 @@ function extractText(element) {
         
       case 'ul':
       case 'ol':
-        const items = Array.from(node.querySelectorAll(':scope > li'));
-        if (items.length > 0) {
-          const listText = items.map((li, index) => {
-            processedNodes.add(li);
-            const prefix = tag === 'ul' ? '• ' : `${index + 1}. `;
-            return `${prefix}${li.textContent.trim()}`;
-          }).join('\n');
-          text = `${listText}\n\n`;
-          processedNodes.add(node);
+        try {
+          const items = Array.from(node.querySelectorAll(':scope > li'));
+          if (items.length > 0) {
+            const listText = items.map((li, index) => {
+              processedNodes.add(li);
+              const prefix = tag === 'ul' ? '• ' : `${index + 1}. `;
+              return `${prefix}${(li.textContent || '').trim()}`;
+            }).filter(item => item.length > 2).join('\n'); // Filter out empty items
+            
+            if (listText) {
+              text = `${listText}\n\n`;
+              processedNodes.add(node);
+            }
+          }
+        } catch (e) {
+          // If list processing fails, treat as paragraph
+          text = `${(node.textContent || '').trim()}\n\n`;
         }
         break;
         
@@ -302,6 +318,25 @@ function extractText(element) {
   }
   
   return result;
+  
+  } catch (error) {
+    console.warn('Content extraction failed, falling back to simple text:', error);
+    
+    // Fallback to simple text extraction
+    try {
+      let text = element.textContent || '';
+      text = text.replace(/\s+/g, ' ').trim();
+      
+      if (text.length > maxLength) {
+        text = text.substring(0, maxLength) + '...';
+      }
+      
+      return text;
+    } catch (fallbackError) {
+      console.error('Even fallback extraction failed:', fallbackError);
+      return 'Unable to extract content from this page.';
+    }
+  }
 }
 
 // Helper function to detect code language

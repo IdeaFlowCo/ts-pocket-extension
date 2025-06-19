@@ -17,16 +17,28 @@ import CONFIG from './config.js';
 import apiClient, { TsPocketError, AuthError, NetworkError, ContentExtractionError } from './api-client.js';
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
+import offlineQueue from './offline-queue.js';
 
 // Track initialization state
 let isInitialized = false;
 let initializationPromise = null;
 
-// Debug logging to storage
+// Production-safe logging
+const IS_DEV = !('update_url' in chrome.runtime.getManifest());
+
 const debugLog = async (message, data = {}) => {
+  // Always log to console in dev
+  if (IS_DEV) {
+    const timestamp = new Date().toISOString();
+    console.log(`[${timestamp}] ${message}`, data);
+  }
+  
+  // Only store debug logs if explicitly enabled or in dev mode
+  const { debugMode } = await storageService.get('debugMode');
+  if (!IS_DEV && !debugMode) return;
+  
   const timestamp = new Date().toISOString();
   const logEntry = { timestamp, message, data };
-  console.log(`[${timestamp}] ${message}`, data);
   
   // Store last 50 debug logs
   try {
@@ -100,6 +112,14 @@ async function initializeExtension() {
     // Check authentication status
     const isAuthenticated = await isLoggedIn();
     console.log('Authentication status:', isAuthenticated);
+    
+    // Check for queued offline saves
+    const queueStatus = await offlineQueue.getQueueStatus();
+    if (queueStatus.count > 0) {
+      await debugLog('Found offline queue items', { count: queueStatus.count });
+      // Start processing queue
+      offlineQueue.processQueue();
+    }
     
     isInitialized = true;
     console.log('TsPocket extension initialized successfully');
@@ -195,7 +215,7 @@ async function saveToThoughtstream(articleData, tags = []) {
   // Get user ID from storage
   await debugLog('Getting user info from storage');
   const { userId } = await storageService.getUserInfo();
-  await debugLog('User ID from storage', { userId: userId ? `${userId.substring(0, 20)}...` : 'NONE' });
+  await debugLog('User ID from storage', { hasUserId: !!userId });
   
   if (!userId) {
     await debugLog('No userId found - throwing error');
@@ -387,18 +407,43 @@ async function handleSave(tab, tags = []) {
   } catch (error) {
     await debugLog('Failed to save article', {
       error: error.message,
-      type: error.name,
-      stack: error.stack
+      type: error.name
     });
     
-    // TODO: Offline support is planned but not implemented yet.
-    // Future implementation will:
-    // 1. Queue failed saves in local storage
-    // 2. Retry when connection is restored
-    // 3. Show offline indicator in badge/popup
-    // 4. Sync queued articles when back online
+    // Handle network errors with offline queue
+    if (error.name === 'NetworkError' || error.code === 'NETWORK_ERROR') {
+      try {
+        // Queue for retry
+        const queueLength = await offlineQueue.add(articleData, tags, {
+          id: generateUUID(),
+          authorId: (await storageService.getUserInfo()).userId,
+          ...noteData // Use the already formatted note data
+        });
+        
+        // Show offline badge with count
+        await chromeApi.updateBadge(tab.id, '📥', '#FF9800');
+        
+        // Notify user
+        await chromeApi.notifications.create({
+          type: 'basic',
+          iconUrl: 'icon-48.png',
+          title: 'Saved Offline',
+          message: `Article will be synced when connection is restored (${queueLength} pending)`
+        });
+        
+        return {
+          success: true,
+          offline: true,
+          queueLength: queueLength,
+          warning: 'Saved offline - will sync when connected'
+        };
+      } catch (queueError) {
+        await debugLog('Failed to queue offline', { error: queueError.message });
+        // Fall through to show error
+      }
+    }
     
-    // Show error badge
+    // Show error badge for other errors
     await chromeApi.updateBadge(tab.id, '!', '#F44336');
     
     throw error;
