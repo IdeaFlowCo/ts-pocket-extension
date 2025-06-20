@@ -1,9 +1,8 @@
 // Unified API client for TsPocket extension
 import CONFIG from './config.js';
 import { getValidAccessToken } from './auth.js';
+import logger from './logger.js';
 
-// Check if running in development
-const IS_DEV = !('update_url' in chrome.runtime.getManifest());
 
 // Custom error classes
 export class TsPocketError extends Error {
@@ -97,10 +96,9 @@ export class ApiClient {
   }
 
   async fetchWithTimeout(url, options = {}, timeout = this.timeout) {
-    console.log('🌐 [API] Making request:', {
+    logger.debug('Making API request', {
       url,
       method: options.method || 'GET',
-      headers: options.headers,
       hasBody: !!options.body
     });
     
@@ -114,16 +112,15 @@ export class ApiClient {
       });
       clearTimeout(id);
       
-      console.log('📡 [API] Response received:', {
+      logger.debug('API response received', {
         status: response.status,
-        statusText: response.statusText,
-        headers: Object.fromEntries(response.headers.entries())
+        statusText: response.statusText
       });
       
       return response;
     } catch (error) {
       clearTimeout(id);
-      console.error('❌ [API] Fetch error:', error);
+      logger.error('Fetch error', { error: error.message });
       if (error.name === 'AbortError') {
         throw new NetworkError('Request timeout', { url, timeout });
       }
@@ -132,7 +129,7 @@ export class ApiClient {
   }
 
   async makeRequest(path, method = 'GET', body = null, options = {}) {
-    console.log(`📡 API ${method} ${path}`, body ? 'with body:' : '', body);
+    logger.debug(`API ${method} ${path}`, { hasBody: !!body });
     
     // Track rate limit retry attempts to prevent infinite recursion
     const rateLimitRetries = options._rateLimitRetries || 0;
@@ -141,7 +138,7 @@ export class ApiClient {
     // Check rate limit
     if (!this.rateLimiter.canMakeRequest()) {
       const waitTime = this.rateLimiter.getWaitTime();
-      console.log(`Rate limit reached. Waiting ${waitTime}ms before retry`);
+      logger.warn('Rate limit reached', { waitTime, rateLimitRetries });
       
       if (options.skipRateLimit || rateLimitRetries >= maxRateLimitRetries) {
         throw new RateLimitError(waitTime, { path, method, rateLimitRetries });
@@ -156,9 +153,7 @@ export class ApiClient {
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
         const token = await getValidAccessToken();
-        if (IS_DEV) {
-          console.log(`🔐 Using auth token:`, token ? 'TOKEN_PRESENT' : 'NO TOKEN');
-        }
+        logger.debug('Auth token status', { hasToken: !!token });
         
         const requestOptions = {
           method,
@@ -171,10 +166,11 @@ export class ApiClient {
 
         if (body) {
           requestOptions.body = JSON.stringify(body);
+          logger.debug('Request has body', { bodySize: JSON.stringify(body).length });
         }
 
         const url = `${this.baseUrl}${path}`;
-        console.log(`🌐 [API] Full URL: ${url}`);
+        logger.debug('Making request', { url });
         
         const response = await this.fetchWithTimeout(url, requestOptions);
         
@@ -182,7 +178,7 @@ export class ApiClient {
         if (response.status === 429) {
           const retryAfter = response.headers.get('Retry-After');
           const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * this.retryDelay;
-          console.log(`Rate limited by server. Waiting ${waitTime}ms before retry`);
+          logger.warn('Rate limited by server', { waitTime, attempt });
           
           if (attempt < retries - 1) {
             await new Promise(resolve => setTimeout(resolve, waitTime));
@@ -201,7 +197,7 @@ export class ApiClient {
           // Don't retry on client errors (4xx) except 429
           if (response.status >= 400 && response.status < 500) {
             const errorBody = await response.text();
-            console.error(`❌ Client error ${response.status}:`, errorBody);
+            logger.error(`Client error ${response.status}`, { statusText: response.statusText, path, method });
             throw new TsPocketError(
               `API request failed: ${response.status} ${response.statusText}`, 
               'CLIENT_ERROR',
@@ -212,7 +208,7 @@ export class ApiClient {
           // Retry on server errors (5xx)
           if (attempt < retries - 1) {
             const delay = Math.pow(2, attempt) * this.retryDelay;
-            console.log(`Server error ${response.status}. Retrying in ${delay}ms...`);
+            logger.warn(`Server error ${response.status}`, { retryDelay: delay, attempt });
             await new Promise(resolve => setTimeout(resolve, delay));
             continue;
           }
@@ -223,12 +219,22 @@ export class ApiClient {
           );
         }
         
-        const data = await response.json();
-        console.log(`✅ API Success for ${method} ${path}`);
+        let data;
+        try {
+          data = await response.json();
+          logger.info(`API Success: ${method} ${path}`);
+        } catch (jsonError) {
+          logger.error('Failed to parse JSON response', { error: jsonError.message, status: response.status });
+          throw new TsPocketError(
+            'Invalid JSON response from API',
+            'PARSE_ERROR',
+            { status: response.status, path, method }
+          );
+        }
         return data;
         
       } catch (error) {
-        console.error(`API request attempt ${attempt + 1} failed:`, error);
+        logger.error(`API request attempt ${attempt + 1} failed`, { error: error.message });
         
         // Re-throw specific errors
         if (error instanceof TsPocketError) {
@@ -238,7 +244,7 @@ export class ApiClient {
         // Network errors - retry
         if (attempt < retries - 1) {
           const delay = Math.pow(2, attempt) * this.retryDelay;
-          console.log(`Retrying in ${delay}ms...`);
+          logger.debug('Retrying request', { delay, attempt });
           await new Promise(resolve => setTimeout(resolve, delay));
           continue;
         }

@@ -1,5 +1,6 @@
 // Storage service wrapper for Chrome storage API
 import CONFIG from './config.js';
+import logger from './logger.js';
 
 /**
  * Chrome storage wrapper with proper error handling and promises
@@ -15,14 +16,14 @@ class StorageService {
    * @returns {Promise<Object>} Retrieved data
    */
   async get(keys) {
-    console.log('💾 [STORAGE] Getting keys:', keys);
+    logger.debug('Storage get', { keys });
     return new Promise((resolve, reject) => {
       chrome.storage.local.get(keys, (result) => {
         if (chrome.runtime.lastError) {
-          console.error('❌ [STORAGE] Get error:', chrome.runtime.lastError);
+          logger.error('Storage get error', { error: chrome.runtime.lastError.message });
           reject(new Error(`Storage get error: ${chrome.runtime.lastError.message}`));
         } else {
-          console.log('✅ [STORAGE] Retrieved:', Object.keys(result));
+          logger.debug('Storage retrieved', { keys: Object.keys(result) });
           resolve(result);
         }
       });
@@ -184,25 +185,55 @@ class StorageService {
    */
   async findSavedArticle(noteId) {
     const articles = await this.getSavedArticles();
-    return articles.find(a => a.noteId === noteId) || null;
+    // Find by noteId, or fall back to local id
+    return articles.find(a => a.noteId === noteId || a.id === noteId) || null;
   }
 
   /**
    * Update saved article
-   * @param {string} noteId
-   * @param {Object} updates
+   * @param {string} id - The local ID or noteId of the article to update
+   * @param {Object} updates - The updates to apply
    * @returns {Promise<boolean>} True if article was found and updated
    */
-  async updateSavedArticle(noteId, updates) {
+  async updateSavedArticle(id, updates) {
     const articles = await this.getSavedArticles();
-    const index = articles.findIndex(a => a.noteId === noteId);
+    const index = articles.findIndex(a => a.id === id || a.noteId === id);
     
     if (index === -1) {
+      logger.warn('Could not find article to update', { id });
       return false;
     }
     
+    // Ensure the original ID is preserved if not in updates
+    const originalId = articles[index].id;
     articles[index] = { ...articles[index], ...updates };
+    if (!updates.id) {
+      articles[index].id = originalId;
+    }
+    
     await this.setSavedArticles(articles);
+    return true;
+  }
+
+  /**
+   * Delete saved article
+   * @param {string} noteId
+   * @returns {Promise<boolean>} True if article was found and deleted
+   */
+  async deleteSavedArticle(noteId) {
+    const articles = await this.getSavedArticles();
+    const filteredArticles = articles.filter(a => {
+      // Keep articles that DON'T match the ID to delete
+      // The logic was inverted before - we want to keep articles where NONE of the IDs match
+      const shouldDelete = a.noteId === noteId || a.id === noteId || a.url === noteId;
+      return !shouldDelete;
+    });
+    
+    if (filteredArticles.length === articles.length) {
+      return false; // Article not found
+    }
+    
+    await this.setSavedArticles(filteredArticles);
     return true;
   }
 

@@ -20,12 +20,18 @@ const searchInput = document.getElementById('searchInput');
 const importBtn = document.getElementById('importBtn');
 const importFile = document.getElementById('importFile');
 const importProgress = document.getElementById('importProgress');
+const deleteAllBtn = document.getElementById('deleteAllBtn');
+const confirmModal = document.getElementById('confirmModal');
+const confirmMessage = document.getElementById('confirmMessage');
+const confirmOkBtn = document.getElementById('confirmOkBtn');
+const confirmCancelBtn = document.getElementById('confirmCancelBtn');
 
 // State
 let currentTags = [];
 let isAuthenticated = false;
 let lastSavedNoteId = null;
 let allSavedArticles = [];
+let pendingAction = null;
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -91,10 +97,15 @@ async function updateAuthDisplay() {
 
 // Load recent saves
 async function loadRecentSaves() {
-  chrome.runtime.sendMessage({ action: 'getHistory' }, (savedArticles) => {
+  try {
+    const savedArticles = await storageService.getSavedArticles();
     allSavedArticles = savedArticles || [];
     displayRecentSaves(allSavedArticles);
-  });
+  } catch (error) {
+    console.error('Failed to load saved articles:', error);
+    allSavedArticles = [];
+    displayRecentSaves(allSavedArticles);
+  }
 }
 
 // Search articles
@@ -141,38 +152,71 @@ function displayRecentSaves(articles) {
       const url = new URL(article.url);
       domain = url.hostname.replace('www.', '');
     } catch (e) {
-      console.error('Invalid URL:', article.url);
+      // Invalid URL - silently skip
     }
     
     // Escape tags to prevent XSS
     const tags = article.tags?.length > 0 
-      ? `<div class="recent-item-tags">${article.tags.map(t => escapeHtml(`#${t}`)).join(' ')}</div>` 
+      ? `<div class="recent-item-tags">${article.tags.map(t => escapeHtml(t.startsWith('#') ? t : `#${t}`)).join(' ')}</div>` 
       : '';
     
+    const articleId = article.noteId || article.id || article.url;
+    
     return `
-      <div class="recent-item" data-url="${escapeHtml(article.url)}">
+      <div class="recent-item" data-url="${escapeHtml(article.url)}" data-note-id="${escapeHtml(articleId)}">
         <div class="recent-item-title">${escapeHtml(article.title)}</div>
         <div class="recent-item-url">${escapeHtml(domain)}</div>
         ${tags}
         <div class="recent-item-time">${escapeHtml(timeAgo)}</div>
+        <button class="delete-btn" data-note-id="${escapeHtml(articleId)}" title="Delete">×</button>
       </div>
     `;
   }).join('');
-  
-  // Add click handlers
-  document.querySelectorAll('.recent-item').forEach(item => {
-    item.addEventListener('click', () => {
-      // Get the original URL from the data attribute (it's been HTML escaped)
-      const url = item.dataset.url;
-      if (url && url !== 'undefined') {
-        chromeApi.tabs.create({ url: url });
-      }
-    });
-  });
 }
 
 // Set up event listeners
 function setupEventListeners() {
+  // Event delegation for recent list (handles both article clicks and delete buttons)
+  recentList.addEventListener('click', async (e) => {
+    // Handle delete button clicks
+    if (e.target.classList.contains('delete-btn')) {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      const noteId = e.target.dataset.noteId;
+      if (!noteId || noteId === 'undefined') {
+        showStatus('Cannot delete: Article ID not found', 'error');
+        return;
+      }
+      
+      // Show confirmation modal
+      showConfirmation('Are you sure you want to delete this article?', async () => {
+        try {
+          const deleted = await storageService.deleteSavedArticle(noteId);
+          if (deleted) {
+            await loadRecentSaves();
+            showStatus('Article deleted', 'success');
+          } else {
+            showStatus('Article not found', 'error');
+          }
+        } catch (error) {
+          console.error('Delete error:', error);
+          showStatus('Failed to delete article', 'error');
+        }
+      });
+      return;
+    }
+    
+    // Handle article clicks (open in new tab)
+    const recentItem = e.target.closest('.recent-item');
+    if (recentItem) {
+      const url = recentItem.dataset.url;
+      if (url && url !== 'undefined') {
+        chromeApi.tabs.create({ url: url });
+      }
+    }
+  });
+  
   // Quick save button
   quickSaveBtn.addEventListener('click', handleQuickSave);
   
@@ -231,21 +275,44 @@ function setupEventListeners() {
   // Authentication is handled via OAuth login
   
   // Search input
-  let searchTimeout;
-  searchInput.addEventListener('input', () => {
-    clearTimeout(searchTimeout);
-    searchTimeout = setTimeout(() => {
-      displayRecentSaves(allSavedArticles);
-    }, 300); // Debounce search
+  searchInput.addEventListener('input', (e) => {
+    const query = e.target.value;
+    const filtered = searchArticles(query);
+    displayRecentSaves(filtered);
   });
   
   // Import button
-  importBtn.addEventListener('click', () => {
-    importFile.click();
-  });
-  
-  // Import file handler
+  importBtn.addEventListener('click', () => importFile.click());
   importFile.addEventListener('change', handlePocketImport);
+  
+  // Delete all button
+  deleteAllBtn.addEventListener('click', () => {
+    showConfirmation('Are you sure you want to delete ALL saved articles? This cannot be undone.', async () => {
+      try {
+        await storageService.set({ [CONFIG.storageKeys.savedArticles]: [] });
+        allSavedArticles = [];
+        displayRecentSaves([]);
+        showStatus('All articles deleted', 'success');
+      } catch (error) {
+        console.error('Failed to delete all articles:', error);
+        showStatus('Error deleting articles', 'error');
+      }
+    });
+  });
+
+  // Modal buttons
+  confirmCancelBtn.addEventListener('click', () => {
+    confirmModal.classList.add('hidden');
+    pendingAction = null;
+  });
+
+  confirmOkBtn.addEventListener('click', () => {
+    if (pendingAction) {
+      pendingAction();
+    }
+    confirmModal.classList.add('hidden');
+    pendingAction = null;
+  });
   
   // Debug button - only show in development
   const debugBtn = document.getElementById('debugBtn');
@@ -274,17 +341,12 @@ function setupEventListeners() {
         const response = await chrome.runtime.sendMessage({ action: 'getLogs' });
         const logs = response.logs || [];
         
-        // Get auth status
-        const authResult = await chrome.storage.local.get(['authToken', 'userId']);
-        
         // Show debug info
         debugInfo.classList.remove('hidden');
         debugBtn.textContent = 'Hide Debug Logs';
         
-        // Format logs
+        // Format logs without sensitive data
         let html = `<div style="margin-bottom: 10px;">
-          <strong>Auth:</strong> ${authResult.authToken ? '✅' : '❌'} 
-          <strong>UserID:</strong> ${authResult.userId || 'None'}
           <strong>Logs:</strong> ${logs.length}
         </div>`;
         
@@ -314,7 +376,7 @@ function setupEventListeners() {
         debugInfo.innerHTML = html;
         
       } catch (error) {
-        console.error('Failed to load debug logs:', error);
+        // Debug log loading error
         debugInfo.innerHTML = `<div style="color: red;">Error loading logs: ${error.message}</div>`;
         debugInfo.classList.remove('hidden');
       }
@@ -341,10 +403,10 @@ async function handleQuickSave() {
       tags: [] 
     });
     
-    console.log('Save response:', response);
+    // Save response received
     
     if (!response) {
-      console.error('No response received from background script');
+      // No response from background
       showStatus('No response from extension', 'error');
       quickSaveBtn.disabled = false;
       quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Thoughtstream</span>';
@@ -360,14 +422,28 @@ async function handleQuickSave() {
         
       loadRecentSaves(); // Refresh recent saves
       
+      // Show warning if there was one (e.g., extraction failed)
+      if (response.warning) {
+        showStatus(response.warning, 'warning');
+      }
+      
       // Don't close popup - let user add tags if they want
     } else {
-      showStatus(response.error || 'Failed to save', 'error');
+      const errorMsg = response?.error || 'Failed to save article to Thoughtstream';
+      // Save failed
+      showStatus(errorMsg, 'error');
       quickSaveBtn.disabled = false;
       quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Thoughtstream</span>';
+      
+      // Show additional help for common errors
+      if (errorMsg.includes('401') || errorMsg.includes('Authentication')) {
+        setTimeout(() => {
+          showStatus('Please re-login in Settings', 'error');
+        }, 3000);
+      }
     }
   } catch (error) {
-    console.error('Save failed:', error);
+    // Save error
     showStatus('Failed to save', 'error');
     quickSaveBtn.disabled = false;
     quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Thoughtstream</span>';
@@ -388,7 +464,7 @@ async function handleAuth() {
       showStatus('Logged out', 'success');
       authBtn.disabled = false;
     } catch (error) {
-      console.error('Logout failed:', error);
+      // Logout error
       showStatus('Logout failed', 'error');
       authBtn.disabled = false;
     }
@@ -417,7 +493,7 @@ async function handleAuth() {
         showStatus(response.error || 'Login failed', 'error');
       }
     } catch (error) {
-      console.error('Login failed:', error);
+      // Login error
       authBtn.disabled = false;
       await updateAuthDisplay();
       showStatus('Login failed', 'error');
@@ -433,6 +509,8 @@ function showView(view) {
   } else {
     settingsView.classList.add('hidden');
     mainView.classList.remove('hidden');
+    // Refresh recent saves when returning to main view
+    loadRecentSaves();
   }
 }
 
@@ -441,17 +519,27 @@ function showStatus(message, type) {
   const statusIcon = saveStatus.querySelector('.status-icon');
   const statusMessage = saveStatus.querySelector('.status-message');
   
-  saveStatus.classList.remove('hidden', 'success', 'error');
+  // Remove all classes and add the appropriate ones
+  saveStatus.classList.remove('hidden', 'show', 'success', 'error');
   saveStatus.classList.add(type);
   
   statusIcon.textContent = type === 'success' ? '✓' : '!';
   statusMessage.textContent = message;
   
+  // Force a reflow to ensure the transition works
+  saveStatus.offsetHeight;
+  
+  // Show the status
+  saveStatus.classList.add('show');
+  
+  // Hide after 2.5 seconds
   setTimeout(() => {
-    saveStatus.classList.add('hidden');
-  }, 3000);
+    saveStatus.classList.remove('show');
+    setTimeout(() => {
+      saveStatus.classList.add('hidden');
+    }, 300); // Wait for fade out transition
+  }, 2500);
 }
-
 
 // Utility functions
 function escapeHtml(text) {
@@ -530,7 +618,7 @@ async function handlePocketImport(event) {
     }
     
   } catch (error) {
-    console.error('Import failed:', error);
+    // Import error
     showImportStatus(error.message || 'Failed to import', 'error');
   }
   
@@ -551,4 +639,10 @@ function showImportStatus(message, type) {
       importProgress.classList.add('hidden');
     }, 5000);
   }
+}
+
+function showConfirmation(message, onConfirm) {
+  confirmMessage.textContent = message;
+  pendingAction = onConfirm;
+  confirmModal.classList.remove('hidden');
 }

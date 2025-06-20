@@ -4,6 +4,7 @@
 // Import centralized config and storage service
 import CONFIG from './config.js';
 import storageService from './storage-service.js';
+import logger from './logger.js';
 
 // OAuth configuration - uses centralized config with auth-specific extensions
 const AUTH_CONFIG = {
@@ -77,9 +78,7 @@ export async function loginWithAuth0() {
     authUrl.searchParams.append('state', state);
     authUrl.searchParams.append('prompt', 'login');
     
-    console.log('Opening auth URL in new tab');
-    console.log('Full auth URL:', authUrl.toString());
-    console.log('Redirect URI being used:', AUTH_CONFIG.redirectUri);
+    logger.debug('Opening auth URL in new tab', { redirectUri: AUTH_CONFIG.redirectUri });
     
     // Return a promise that resolves when we get the auth code
     return new Promise(async (resolve) => {
@@ -166,7 +165,7 @@ export async function loginWithAuth0() {
     });
     
   } catch (error) {
-    console.error('Login failed:', error);
+    logger.error('Login failed', { error: error.message });
     return {
       success: false,
       error: error.message
@@ -197,11 +196,11 @@ async function exchangeCodeForTokens(code, codeVerifier) {
     }
     
     const tokens = await tokenResponse.json();
-    console.log('Tokens received');
+    logger.info('Tokens received successfully');
     
     // Parse user info from ID token
     const userInfo = parseJWT(tokens.id_token);
-    console.log('User info:', userInfo);
+    logger.debug('User parsed from token', { userId: userInfo.sub, email: userInfo.email });
     
     // Store tokens and user info
     await storageService.set({
@@ -227,7 +226,7 @@ async function exchangeCodeForTokens(code, codeVerifier) {
     };
     
   } catch (error) {
-    console.error('Token exchange failed:', error);
+    logger.error('Token exchange failed', { error: error.message });
     return {
       success: false,
       error: error.message
@@ -271,7 +270,7 @@ export async function refreshAccessToken() {
     return tokens.access_token;
     
   } catch (error) {
-    console.error('Token refresh failed:', error);
+    logger.error('Token refresh failed', { error: error.message });
     // Clear auth data on refresh failure
     await logout();
     throw error;
@@ -286,25 +285,25 @@ export async function isTokenExpired() {
 
 // Get valid access token
 export async function getValidAccessToken() {
-  console.log('🔐 [AUTH] Getting valid access token...');
+  logger.debug('Getting valid access token');
   
   const expired = await isTokenExpired();
-  console.log('🔍 [AUTH] Token expired?', expired);
+  logger.debug('Token expiration check', { expired });
   
   if (expired) {
-    console.log('⏰ [AUTH] Token expired, refreshing...');
+    logger.info('Token expired, refreshing');
     try {
       const newToken = await refreshAccessToken();
-      console.log('✅ [AUTH] Token refreshed successfully');
+      logger.info('Token refreshed successfully');
       return newToken;
     } catch (error) {
-      console.error('❌ [AUTH] Token refresh failed:', error);
+      logger.error('Token refresh failed', { error: error.message });
       throw error;
     }
   }
   
   const token = await storageService.getAuthToken();
-  console.log('✅ [AUTH] Using existing token:', token ? `${token.substring(0, 20)}...` : 'NO TOKEN');
+  logger.debug('Using existing token', { hasToken: !!token });
   return token;
 }
 

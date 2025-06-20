@@ -3,6 +3,9 @@
   "name": "TsPocket - Save to Thoughtstream",
   "version": "1.0.0",
   "description": "Save articles to Thoughtstream with a Pocket-like experience",
+  "author": "Ideaflow",
+  "homepage_url": "https://ideaflow.app",
+  "offline_enabled": false,
   "permissions": [
     "activeTab",
     "storage",

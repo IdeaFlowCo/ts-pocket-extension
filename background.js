@@ -1,7 +1,7 @@
 // Background script for TsPocket Chrome Extension
 import { loginWithAuth0, logout, isLoggedIn } from './auth.js';
 import CONFIG from './config.js';
-import apiClient, { TsPocketError, AuthError, NetworkError, ContentExtractionError } from './api-client.js';
+import apiClient, { ContentExtractionError } from './api-client.js';
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
 import offlineQueue from './offline-queue.js';
@@ -108,17 +108,8 @@ async function initializeExtension() {
 }
 
 // Helper function to generate UUID
-function generateUUID() {
-  try {
-    return 'xxxxxxxx-xxxx-4xxx-yxxx-xxxxxxxxxxxx'.replace(/[xy]/g, function(c) {
-      const r = Math.random() * 16 | 0;
-      const v = c === 'x' ? r : (r & 0x3 | 0x8);
-      return v.toString(16);
-    });
-  } catch (error) {
-    log.error('UUID generation failed:', error);
-    throw error;
-  }
+function generateShortId() {
+  return Math.random().toString(36).substring(2, 12);
 }
 
 
@@ -188,127 +179,97 @@ async function extractArticleContent(tab) {
 
 // Save article to Thoughtstream
 async function saveToThoughtstream(articleData, tags = []) {
-  log.info('saveToThoughtstream called', {
-    hasArticleData: !!articleData,
-    articleDataKeys: articleData ? Object.keys(articleData) : [],
-    tagsLength: tags?.length || 0
-  });
-  
+  log.info('saveToThoughtstream called (Definitive Mode with Position Fix)');
+
   try {
-    log.info('About to generate UUID');
-    const noteId = generateUUID();
-    log.info('Generated noteId', { noteId });
-    
+    const noteId = generateShortId();
+    const userId = (await storageService.getUserInfo()).userId;
     const timestamp = new Date().toISOString();
-    log.info('Generated timestamp', { timestamp });
-    
-    // Get user ID from storage
-    log.info('Getting user info from storage');
-    let userId;
-    try {
-      const userInfo = await storageService.getUserInfo();
-      userId = userInfo.userId;
-      log.info('getUserInfo returned', { 
-        hasUserId: !!userId, 
-        hasUserInfo: !!userInfo,
-        userInfoKeys: userInfo ? Object.keys(userInfo) : []
-      });
-    } catch (error) {
-      log.info('getUserInfo failed', { 
-        error: error.message,
-        stack: error.stack 
-      });
-      throw error;
-    }
-    
-    log.info('User ID from storage', { hasUserId: !!userId });
-    
+    const positionValue = String(-new Date().getTime());
+
     if (!userId) {
-      log.info('No userId found - throwing error');
       throw new Error('User ID not found. Please login again.');
     }
-  
-  // Format tags as hashtags
-  const hashtagString = tags.length > 0 
-    ? tags.map(tag => `#${tag.replace(/\s+/g, '-')}`).join(' ') + ' '
-    : '';
-  
-  // Format note content with #pocket hashtag and any additional tags
-  const noteContent = `#pocket ${hashtagString}
 
-${articleData.title}
+    // Construct the note content.
+    const contentParts = [
+      articleData.title,
+      articleData.author ? `By ${articleData.author}` : null,
+      articleData.publishedTime ? `Published: ${new Date(articleData.publishedTime).toLocaleDateString()}` : null,
+      articleData.description,
+      articleData.content,
+      '---',
+      `URL: ${articleData.url}`,
+      `Domain: ${articleData.domain || new URL(articleData.url).hostname}`,
+      `Saved: ${new Date(articleData.savedAt).toLocaleString()}`
+    ];
 
-${articleData.author ? `By ${articleData.author}\n` : ''}${articleData.publishedTime ? `Published: ${new Date(articleData.publishedTime).toLocaleDateString()}\n\n` : ''}${articleData.description ? articleData.description + '\n\n' : ''}${articleData.content}
+    // Sanitize, truncate, and create tokens.
+    const MAX_CONTENT_LENGTH = 15000;
+    const allLines = contentParts
+      .filter(p => p != null)
+      .join('\n\n')
+      .substring(0, MAX_CONTENT_LENGTH)
+      .replace(/[^\x20-\x7E\t\n\r]/g, '')
+      .split('\n');
 
----
-URL: ${articleData.url}
-Domain: ${articleData.domain || new URL(articleData.url).hostname}
-Saved: ${new Date(articleData.savedAt).toLocaleString()}`;
+    const contentTokens = allLines
+      .filter(line => line.trim() !== '')
+      .map(line => ({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [{ type: 'text', marks: [], content: line }],
+        depth: 0
+    }));
 
-  log.info('Note content formatted', {
-    preview: noteContent.substring(0, 100) + '...',
-    fullLength: noteContent.length
-  });
-  
-  // Create note matching the exact structure from the API
-  const noteData = {
-    id: noteId,
-    authorId: userId,
-    readAll: false,
-    createdAt: timestamp,
-    updatedAt: timestamp,
-    deletedAt: null,
-    tokens: [{
-      type: 'paragraph',
-      tokenId: generateUUID(),
-      content: [{
-        type: 'text',
-        marks: [],
-        content: noteContent
-      }],
-      depth: 0
-    }],
-    folderId: null,
-    insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''), // YYYYMMDD format
-    position: generateUUID(), // Random position string
-    isSharedPrivately: false,
-    directUrlOnly: true,
-    expansionSetting: 'auto'
-  };
-  
-  
-  try {
-    // Save to Thoughtstream
-    log.info('Sending to API', { 
-      endpoint: '/notes',
-      noteId: noteId,
-      contentLength: noteContent.length 
-    });
-    
+    const initialTags = ['pocket', ...tags];
+    const firstParagraphContent = initialTags.flatMap(tag => ([
+        { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
+        { type: 'text', content: ' ', marks: [] }
+    ]));
+
+    const firstParagraphToken = {
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: firstParagraphContent,
+        depth: 0,
+    };
+
+    const finalTokens = [firstParagraphToken, ...contentTokens];
+
+    // The DEFINITIVE PAYLOAD with the inverted position value.
+    const noteData = {
+      id: noteId,
+      authorId: userId,
+      tokens: finalTokens,
+      position: positionValue,
+      readAll: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      folderId: null,
+      insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+      isSharedPrivately: false,
+      directUrlOnly: true,
+      expansionSetting: 'auto'
+    };
+
+    log.info('Final, definitive note data prepared', { noteId: noteData.id, position: positionValue });
+
     const response = await apiClient.post('/notes', { notes: [noteData] });
-    
-    log.info('API response received', { 
-      status: response?.status,
-      data: response?.data,
-      error: response?.error 
-    });
-    
-    return { noteId, response };
-  } catch (apiError) {
-    log.info('API request failed', {
-      error: apiError.message,
-      code: apiError.code,
-      details: apiError.details
-    });
-    throw apiError;
-  }
-  
+
+    // This is the CRITICAL check.
+    const createdNote = response?.data?.find(note => note.id === noteId);
+    if (createdNote) {
+        log.info('✅ SUCCESS: API confirmed save.', { noteId });
+        return { noteId, response };
+    } else {
+        log.error('❌ FAILURE: API did not confirm save.', { sentNoteId: noteId, responseBody: response });
+        throw new Error('API did not confirm save.');
+    }
+
   } catch (error) {
-    log.info('saveToThoughtstream failed with unexpected error', {
-      error: error.message,
-      stack: error.stack,
-      name: error.name
-    });
+    log.error('saveToThoughtstream failed with unexpected error', { error: error.message, name: error.name });
     throw error;
   }
 }
@@ -417,19 +378,24 @@ async function handleSave(tab, tags = []) {
       warning: articleData.extractionFailed ? 'Saved with limited content due to extraction failure' : null
     };
   } catch (error) {
-    log.info('Failed to save article', {
+    log.error('Failed to save article', {
       error: error.message,
-      type: error.name
+      type: error.name,
+      stack: error.stack,
+      details: error.details
     });
+    
+    // Show error badge immediately
+    await chromeApi.updateBadge(tab.id, '❌', '#F44336');
     
     // Handle network errors with offline queue
     if (error.name === 'NetworkError' || error.code === 'NETWORK_ERROR') {
       try {
         // Queue for retry
         const queueLength = await offlineQueue.add(articleData, tags, {
-          id: generateUUID(),
+          id: generateShortId(),
           authorId: (await storageService.getUserInfo()).userId,
-          ...noteData // Use the already formatted note data
+          ...result // Use the already formatted result
         });
         
         // Show offline badge with count
@@ -690,7 +656,7 @@ async function handlePocketImport(articles) {
         // Add to local history
         await storageService.addSavedArticle({
           ...articleData,
-          noteId: generateUUID(),
+          noteId: generateShortId(),
           tags: tags
         });
         
