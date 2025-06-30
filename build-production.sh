@@ -18,6 +18,8 @@ rsync -av --exclude-from='.production-exclude' \
     --exclude='.git/' \
     --exclude='.production-exclude' \
     --exclude='build-production.sh' \
+    --exclude='tspocket-production.zip' \
+    --exclude='tspocket_800.png' \
     . build/
 
 # Create zip for Chrome Web Store

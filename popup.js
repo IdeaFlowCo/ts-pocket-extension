@@ -11,6 +11,7 @@ const settingsBtn = document.getElementById('settingsBtn');
 const backBtn = document.getElementById('backBtn');
 const authBtn = document.getElementById('authBtn');
 const tagsInput = document.getElementById('tagsInput');
+const preSaveTagsInput = document.getElementById('preSaveTagsInput');
 const recentList = document.getElementById('recentList');
 const saveStatus = document.getElementById('saveStatus');
 const authStatus = document.getElementById('authStatus');
@@ -220,6 +221,14 @@ function setupEventListeners() {
   // Quick save button
   quickSaveBtn.addEventListener('click', handleQuickSave);
   
+  // Enter key on pre-save tags input
+  preSaveTagsInput.addEventListener('keypress', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      handleQuickSave();
+    }
+  });
+  
   // Settings navigation
   settingsBtn.addEventListener('click', () => showView('settings'));
   backBtn.addEventListener('click', () => showView('main'));
@@ -397,10 +406,14 @@ async function handleQuickSave() {
   quickSaveBtn.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Saving...</span>';
   
   try {
-    // Send save message to background (no tags for quick save)
+    // Get tags from pre-save input
+    const preSaveTags = preSaveTagsInput.value.trim();
+    const tagsArray = preSaveTags ? preSaveTags.split(/\s+/).filter(tag => tag.length > 0) : [];
+    
+    // Send save message to background with pre-save tags
     const response = await chromeApi.runtime.sendMessage({ 
       action: 'save',
-      tags: [] 
+      tags: tagsArray 
     });
     
     // Save response received
@@ -415,6 +428,9 @@ async function handleQuickSave() {
     
     if (response && response.success) {
       lastSavedNoteId = response.noteId;
+      
+      // Clear pre-save tags input
+      preSaveTagsInput.value = '';
       
       // Hide save button, show post-save options
       quickSaveBtn.classList.add('hidden');
@@ -509,6 +525,15 @@ function showView(view) {
   } else {
     settingsView.classList.add('hidden');
     mainView.classList.remove('hidden');
+    
+    // Reset main view UI
+    quickSaveBtn.classList.remove('hidden');
+    quickSaveBtn.disabled = false;
+    quickSaveBtn.innerHTML = '<span class="btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></span><span class="btn-text">Save to Thoughtstream</span>';
+    postSaveOptions.classList.add('hidden');
+    preSaveTagsInput.value = '';
+    tagsInput.value = '';
+    
     // Refresh recent saves when returning to main view
     loadRecentSaves();
   }

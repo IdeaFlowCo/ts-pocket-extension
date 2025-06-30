@@ -191,36 +191,18 @@ async function saveToThoughtstream(articleData, tags = []) {
       throw new Error('User ID not found. Please login again.');
     }
 
-    // Construct the note content.
+    // Simplified content - just URL for now
     const contentParts = [
-      articleData.title,
-      articleData.author ? `By ${articleData.author}` : null,
-      articleData.publishedTime ? `Published: ${new Date(articleData.publishedTime).toLocaleDateString()}` : null,
-      articleData.description,
-      articleData.content,
-      '---',
-      `URL: ${articleData.url}`,
-      `Domain: ${articleData.domain || new URL(articleData.url).hostname}`,
-      `Saved: ${new Date(articleData.savedAt).toLocaleString()}`
+      articleData.url
     ];
 
-    // Sanitize, truncate, and create tokens.
-    const MAX_CONTENT_LENGTH = 15000;
-    const allLines = contentParts
-      .filter(p => p != null)
-      .join('\n\n')
-      .substring(0, MAX_CONTENT_LENGTH)
-      .replace(/[^\x20-\x7E\t\n\r]/g, '')
-      .split('\n');
-
-    const contentTokens = allLines
-      .filter(line => line.trim() !== '')
-      .map(line => ({
-        type: 'paragraph',
-        tokenId: generateShortId(),
-        content: [{ type: 'text', marks: [], content: line }],
-        depth: 0
-    }));
+    // Create simple tokens
+    const contentTokens = [{
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [{ type: 'text', marks: [], content: articleData.url }],
+      depth: 0
+    }];
 
     const initialTags = ['pocket', ...tags];
     const firstParagraphContent = initialTags.flatMap(tag => ([
@@ -282,6 +264,8 @@ async function handleSave(tab, tags = []) {
     // Show saving badge
     await chromeApi.updateBadge(tab.id, '...', '#4CAF50', 0);
     
+    // CONTENT EXTRACTION COMMENTED OUT - Only saving URL and tags for now
+    /*
     let articleData;
     
     try {
@@ -342,6 +326,20 @@ async function handleSave(tab, tags = []) {
         throw extractError;
       }
     }
+    */
+    
+    // Simplified version - just save URL and title
+    const articleData = {
+      title: tab.title || 'Untitled',
+      url: tab.url,
+      description: '',
+      content: '', // No content extraction for now
+      author: '',
+      publishedTime: '',
+      images: [],
+      savedAt: new Date().toISOString(),
+      extractionFailed: false
+    };
     
     // Save to Thoughtstream with tags
     log.info('Calling saveToThoughtstream', { 
@@ -365,17 +363,13 @@ async function handleSave(tab, tags = []) {
     // Storage service handles limiting articles
     await storageService.setSavedArticles(savedArticles);
     
-    // Show success badge (with warning if extraction failed)
-    if (articleData.extractionFailed) {
-      await chromeApi.updateBadge(tab.id, '⚠', '#FF9800');
-    } else {
-      await chromeApi.updateBadge(tab.id, '✓', '#4CAF50');
-    }
+    // Show success badge
+    await chromeApi.updateBadge(tab.id, '✓', '#4CAF50');
     
     return { 
       success: true, 
       noteId: result.noteId,
-      warning: articleData.extractionFailed ? 'Saved with limited content due to extraction failure' : null
+      warning: null
     };
   } catch (error) {
     log.error('Failed to save article', {
