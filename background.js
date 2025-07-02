@@ -547,6 +547,91 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
   }
 }
 
+// Handle text selection with link information
+async function handleSaveSelectionWithLinks(tab, selectionData) {
+  log.info('Starting selection save with links', { 
+    url: selectionData.pageInfo.url, 
+    textLength: selectionData.text.length,
+    linkCount: selectionData.links.length,
+    tabId: tab.id 
+  });
+  
+  try {
+    // Show saving badge
+    await chromeApi.updateBadge(tab.id, '...', '#4CAF50', 0);
+    
+    // Prepare the selection data for saving
+    const enrichedData = {
+      title: tab.title || 'Untitled Page',
+      url: selectionData.pageInfo.url || tab.url,
+      selectedText: selectionData.text,
+      links: selectionData.links,
+      hasLinks: selectionData.hasLinks,
+      savedAt: new Date().toISOString()
+    };
+    
+    // Save with #highlight tag
+    const result = await saveSelectionToThoughtstream(enrichedData);
+    
+    log.info('Selection with links saved', { noteId: result.noteId });
+    
+    // Store in local history with enriched format
+    const savedArticles = await storageService.getSavedArticles();
+    
+    // Extract domain for compact display
+    let domain = '';
+    try {
+      const urlObj = new URL(enrichedData.url);
+      domain = urlObj.hostname.replace('www.', '');
+    } catch (e) {
+      domain = 'unknown';
+    }
+    
+    // Create description with link indicators
+    let description = enrichedData.selectedText.substring(0, 200);
+    if (enrichedData.hasLinks) {
+      description += ` [${enrichedData.links.length} link${enrichedData.links.length > 1 ? 's' : ''}]`;
+    }
+    if (enrichedData.selectedText.length > 200) {
+      description += '...';
+    }
+    
+    savedArticles.unshift({
+      title: domain,
+      url: enrichedData.url,
+      domain: domain,
+      description: description,
+      content: enrichedData.selectedText,
+      links: enrichedData.links,
+      hasLinks: enrichedData.hasLinks,
+      author: '',
+      publishedTime: '',
+      images: [],
+      savedAt: enrichedData.savedAt,
+      noteId: result.noteId,
+      tags: ['highlight'],
+      isHighlight: true,
+      originalPageTitle: enrichedData.title
+    });
+    
+    // Keep only last 100 items
+    if (savedArticles.length > 100) {
+      savedArticles.pop();
+    }
+    
+    await storageService.setSavedArticles(savedArticles);
+    
+    // Show success
+    await chromeApi.updateBadge(tab.id, '✓', '#4CAF50', 3000);
+    
+    return { success: true, noteId: result.noteId };
+  } catch (error) {
+    log.error('handleSaveSelectionWithLinks failed', { error: error.message });
+    await chromeApi.updateBadge(tab.id, '✗', '#f44336', 3000);
+    throw error;
+  }
+}
+
 // Save selection to Thoughtstream
 async function saveSelectionToThoughtstream(selectionData) {
   log.info('saveSelectionToThoughtstream called');
@@ -602,6 +687,38 @@ async function saveSelectionToThoughtstream(selectionData) {
       ],
       depth: 0
     });
+    
+    // If there are links, add them as a separate paragraph
+    if (selectionData.links && selectionData.links.length > 0) {
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [{ type: 'text', content: '', marks: [] }],
+        depth: 0
+      });
+      
+      // Add links paragraph
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [
+          { type: 'text', content: '🔗 Links found in selection:', marks: [] }
+        ],
+        depth: 0
+      });
+      
+      // Add each link
+      selectionData.links.forEach(link => {
+        tokens.push({
+          type: 'paragraph',
+          tokenId: generateShortId(),
+          content: [
+            { type: 'text', content: `• "${link.text}" → ${link.url}`, marks: [] }
+          ],
+          depth: 0
+        });
+      });
+    }
 
     const noteData = {
       id: noteId,
@@ -792,11 +909,21 @@ async function handleMessage(request, sender, sendResponse) {
     });
     return true;
   }
+  
+  if (request.action === 'storeSelectionData') {
+    // Store selection data temporarily for context menu use
+    lastSelectionData = request.data;
+    sendResponse({ success: true });
+    return true;
+  }
 }
 
 // Context menu
 
-chromeApi.contextMenus.onClicked.addListener((info, tab) => {
+// Store temporary selection data from content script
+let lastSelectionData = null;
+
+chromeApi.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'saveToTsPocket') {
     // Handle full page save
     handleSave(tab).catch(error => {
@@ -805,9 +932,28 @@ chromeApi.contextMenus.onClicked.addListener((info, tab) => {
   } else if (info.menuItemId === 'saveSelectionToTsPocket') {
     // Handle text selection save
     if (info.selectionText) {
-      handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
-        log.error('Selection save failed:', error);
-      });
+      try {
+        // Try to get rich selection data from content script
+        const response = await chromeApi.tabs.sendMessage(tab.id, { action: 'extractSelection' });
+        
+        if (response && response.text) {
+          // Use rich selection data with link information
+          handleSaveSelectionWithLinks(tab, response).catch(error => {
+            log.error('Selection save with links failed:', error);
+          });
+        } else {
+          // Fallback to simple text selection
+          handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
+            log.error('Selection save failed:', error);
+          });
+        }
+      } catch (e) {
+        // Content script not available, use simple selection
+        log.info('Content script not available, using simple selection');
+        handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
+          log.error('Selection save failed:', error);
+        });
+      }
     }
   }
 });
