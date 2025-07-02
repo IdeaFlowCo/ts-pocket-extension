@@ -466,6 +466,169 @@ Saved: ${new Date(article.savedAt).toLocaleString()}`;
   return response;
 }
 
+// Handle text selection saves
+async function handleSaveSelection(tab, selectedText, pageUrl) {
+  log.info('Starting selection save', { 
+    url: pageUrl, 
+    textLength: selectedText.length,
+    tabId: tab.id 
+  });
+  
+  try {
+    // Show saving badge
+    await chromeApi.updateBadge(tab.id, '...', '#4CAF50', 0);
+    
+    // Create selection data
+    const selectionData = {
+      title: tab.title || 'Untitled Page',
+      url: pageUrl || tab.url,
+      selectedText: selectedText,
+      savedAt: new Date().toISOString()
+    };
+    
+    // Save with #highlight tag
+    const result = await saveSelectionToThoughtstream(selectionData);
+    
+    log.info('Selection save completed', { noteId: result.noteId });
+    
+    // Store in local history
+    const savedArticles = await storageService.getSavedArticles();
+    savedArticles.unshift({
+      title: `Highlight: ${selectionData.title}`,
+      url: selectionData.url,
+      description: selectedText.substring(0, 200) + (selectedText.length > 200 ? '...' : ''),
+      content: selectedText,
+      author: '',
+      publishedTime: '',
+      images: [],
+      savedAt: selectionData.savedAt,
+      noteId: result.noteId,
+      tags: ['highlight'],
+      isHighlight: true
+    });
+    
+    // Keep only last 100 items
+    if (savedArticles.length > 100) {
+      savedArticles.pop();
+    }
+    
+    await storageService.setSavedArticles(savedArticles);
+    
+    // Show success
+    await chromeApi.updateBadge(tab.id, '✓', '#4CAF50', 3000);
+    
+    return { success: true, noteId: result.noteId };
+  } catch (error) {
+    log.error('handleSaveSelection failed', { error: error.message });
+    await chromeApi.updateBadge(tab.id, '✗', '#f44336', 3000);
+    throw error;
+  }
+}
+
+// Save selection to Thoughtstream
+async function saveSelectionToThoughtstream(selectionData) {
+  log.info('saveSelectionToThoughtstream called');
+
+  try {
+    const noteId = generateShortId();
+    const userId = (await storageService.getUserInfo()).userId;
+    const timestamp = new Date().toISOString();
+    const positionValue = String(-new Date().getTime());
+
+    if (!userId) {
+      throw new Error('User ID not found. Please login again.');
+    }
+
+    // Create tokens array
+    const tokens = [];
+    
+    // First paragraph: #highlight tag
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [
+        { type: 'hashtag', content: '#highlight' },
+        { type: 'text', content: ' ', marks: [] }
+      ],
+      depth: 0
+    });
+    
+    // Second paragraph: Source info
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [
+        { type: 'text', content: `From: ${selectionData.title}`, marks: [] }
+      ],
+      depth: 0
+    });
+    
+    // Third paragraph: URL
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [
+        { type: 'text', content: selectionData.url, marks: [] }
+      ],
+      depth: 0
+    });
+    
+    // Fourth paragraph: Empty line
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [{ type: 'text', content: '', marks: [] }],
+      depth: 0
+    });
+    
+    // Fifth paragraph: Selected text
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [
+        { type: 'text', content: selectionData.selectedText, marks: [] }
+      ],
+      depth: 0
+    });
+
+    const noteData = {
+      id: noteId,
+      authorId: userId,
+      tokens: tokens,
+      position: positionValue,
+      readAll: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      folderId: null,
+      insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+      isSharedPrivately: false,
+      directUrlOnly: true,
+      expansionSetting: 'auto'
+    };
+
+    log.info('Selection note data prepared', { 
+      noteId: noteData.id,
+      tokenCount: tokens.length 
+    });
+
+    const response = await apiClient.post('/notes', { notes: [noteData] });
+
+    const createdNote = response?.data?.find(note => note.id === noteId);
+    if (createdNote) {
+        log.info('✅ SUCCESS: Selection saved.', { noteId });
+        return { noteId, response };
+    } else {
+        log.error('❌ FAILURE: Selection save not confirmed.', { sentNoteId: noteId });
+        throw new Error('API did not confirm selection save.');
+    }
+
+  } catch (error) {
+    log.error('saveSelectionToThoughtstream failed', { error: error.message });
+    throw error;
+  }
+}
+
 // Message handler with initialization check
 chromeApi.runtime.onMessage.addListener((request, sender, sendResponse) => {
   log.info('Message received', { action: request.action, from: sender.tab?.url || 'extension' });
@@ -509,6 +672,34 @@ async function handleMessage(request, sender, sendResponse) {
         sendResponse(result);
       } catch (error) {
         log.info('Save action failed', { 
+          error: error.message,
+          stack: error.stack 
+        });
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Will respond asynchronously
+  }
+  
+  if (request.action === 'saveSelection') {
+    (async () => {
+      try {
+        log.info('Save selection action');
+        const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
+        
+        const result = await handleSaveSelection(
+          tabs[0], 
+          request.selectedText, 
+          request.pageUrl || tabs[0].url
+        );
+        
+        log.info('handleSaveSelection completed', { 
+          success: result.success,
+          hasNoteId: !!result.noteId 
+        });
+        sendResponse(result);
+      } catch (error) {
+        log.info('Save selection failed', { 
           error: error.message,
           stack: error.stack 
         });
@@ -595,9 +786,17 @@ async function handleMessage(request, sender, sendResponse) {
 
 chromeApi.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'saveToTsPocket') {
-    handleSave(tab).catch(error => {
-      log.error('Context menu save failed:', error);
-    });
+    if (info.selectionText) {
+      // Handle text selection save
+      handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
+        log.error('Selection save failed:', error);
+      });
+    } else {
+      // Handle full page save
+      handleSave(tab).catch(error => {
+        log.error('Context menu save failed:', error);
+      });
+    }
   }
 });
 
