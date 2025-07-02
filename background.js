@@ -564,7 +564,8 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
     const enrichedData = {
       title: tab.title || 'Untitled Page',
       url: selectionData.pageInfo.url || tab.url,
-      selectedText: selectionData.text,
+      selectedText: selectionData.markdownText || selectionData.text,  // Use markdown version if available
+      plainText: selectionData.text,  // Keep plain text for search
       links: selectionData.links,
       hasLinks: selectionData.hasLinks,
       savedAt: new Date().toISOString()
@@ -587,12 +588,12 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       domain = 'unknown';
     }
     
-    // Create description with link indicators
-    let description = enrichedData.selectedText.substring(0, 200);
+    // Create description with link indicators (use plain text for display)
+    let description = enrichedData.plainText.substring(0, 200);
     if (enrichedData.hasLinks) {
       description += ` [${enrichedData.links.length} link${enrichedData.links.length > 1 ? 's' : ''}]`;
     }
-    if (enrichedData.selectedText.length > 200) {
+    if (enrichedData.plainText.length > 200) {
       description += '...';
     }
     
@@ -697,23 +698,32 @@ async function saveSelectionToThoughtstream(selectionData) {
         depth: 0
       });
       
-      // Add links paragraph
+      // Add links section header
       tokens.push({
         type: 'paragraph',
         tokenId: generateShortId(),
         content: [
-          { type: 'text', content: '🔗 Links found in selection:', marks: [] }
+          { type: 'text', content: '---', marks: [] }
+        ],
+        depth: 0
+      });
+      
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [
+          { type: 'text', content: `🔗 Links found in selection (${selectionData.links.length}):`, marks: [] }
         ],
         depth: 0
       });
       
       // Add each link
-      selectionData.links.forEach(link => {
+      selectionData.links.forEach((link, index) => {
         tokens.push({
           type: 'paragraph',
           tokenId: generateShortId(),
           content: [
-            { type: 'text', content: `• "${link.text}" → ${link.url}`, marks: [] }
+            { type: 'text', content: `${index + 1}. [${link.text}](${link.url})`, marks: [] }
           ],
           depth: 0
         });

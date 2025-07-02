@@ -1,5 +1,35 @@
 // Content script for extracting selection with link information
 
+// Function to convert selection to markdown with links
+function convertToMarkdown(container, plainText) {
+  // Create a working copy of the container
+  const workingContainer = container.cloneNode(true);
+  
+  // Replace all anchor tags with markdown format
+  const anchors = workingContainer.querySelectorAll('a[href]');
+  anchors.forEach(anchor => {
+    const href = anchor.getAttribute('href');
+    const text = anchor.textContent;
+    
+    if (href && text) {
+      // Create markdown link
+      const markdownLink = `[${text}](${href})`;
+      
+      // Replace the anchor with a text node
+      const textNode = document.createTextNode(markdownLink);
+      anchor.parentNode.replaceChild(textNode, anchor);
+    }
+  });
+  
+  // Get the markdown text
+  let markdownText = workingContainer.textContent.trim();
+  
+  // Clean up extra whitespace
+  markdownText = markdownText.replace(/\s+/g, ' ').trim();
+  
+  return markdownText;
+}
+
 // Function to extract selection with links
 function extractSelectionWithLinks() {
   const selection = window.getSelection();
@@ -19,21 +49,13 @@ function extractSelectionWithLinks() {
     return null;
   }
   
-  // Debug logging
-  console.log('TsPocket: Selection HTML:', container.innerHTML);
-  console.log('TsPocket: Plain text:', plainText);
-  
   // Extract links from the selection
   const links = [];
   const anchors = container.querySelectorAll('a[href]');
   
-  console.log('TsPocket: Found anchors:', anchors.length);
-  
   anchors.forEach((anchor, index) => {
     const href = anchor.getAttribute('href');
     const text = anchor.textContent.trim();
-    
-    console.log(`TsPocket: Anchor ${index}:`, { href, text });
     
     if (href && text) {
       // Make absolute URL
@@ -42,7 +64,6 @@ function extractSelectionWithLinks() {
         absoluteUrl = new URL(href, window.location.href).href;
       } catch (e) {
         // Invalid URL, use as-is
-        console.log('TsPocket: URL parsing error:', e);
       }
       
       links.push({
@@ -63,8 +84,12 @@ function extractSelectionWithLinks() {
   const contextBefore = fullText.substring(contextStart, selectionStart).trim();
   const contextAfter = fullText.substring(selectionStart + plainText.length, contextEnd).trim();
   
+  // Generate markdown version of the selection
+  const markdownText = convertToMarkdown(container, plainText);
+  
   const result = {
     text: plainText,
+    markdownText: markdownText,
     links: links,
     hasLinks: links.length > 0,
     context: {
@@ -77,7 +102,6 @@ function extractSelectionWithLinks() {
     }
   };
   
-  console.log('TsPocket: Final extraction result:', result);
   return result;
 }
 
