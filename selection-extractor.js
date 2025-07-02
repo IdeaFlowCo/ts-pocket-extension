@@ -147,14 +147,26 @@ function extractSelectionWithLinks() {
 // Listen for messages from the extension
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'extractSelection') {
+    // Don't respond if we're on Twitter/X - let the Twitter extractor handle it
+    if (window.location.hostname === 'twitter.com' || window.location.hostname === 'x.com') {
+      console.log('Selection extractor: Deferring to Twitter extractor');
+      return false; // Let other content scripts handle this
+    }
+    
     const selectionData = extractSelectionWithLinks();
     sendResponse(selectionData);
+    return true; // Keep message channel open
   }
-  return true; // Keep message channel open for async response
 });
 
 // Also listen for the context menu being opened
 document.addEventListener('contextmenu', (e) => {
+  // Don't store data if we're on Twitter/X - let the Twitter extractor handle it
+  if (window.location.hostname === 'twitter.com' || window.location.hostname === 'x.com') {
+    console.log('Selection extractor: Not storing data on Twitter/X');
+    return;
+  }
+  
   const selectionData = extractSelectionWithLinks();
   
   if (selectionData) {

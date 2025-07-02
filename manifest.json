@@ -42,6 +42,11 @@
       "matches": ["<all_urls>"],
       "js": ["selection-extractor.js"],
       "run_at": "document_idle"
+    },
+    {
+      "matches": ["*://twitter.com/*", "*://x.com/*"],
+      "js": ["twitter-extractor.js"],
+      "run_at": "document_idle"
     }
   ],
   "commands": {
