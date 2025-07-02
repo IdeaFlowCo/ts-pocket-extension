@@ -40,11 +40,81 @@ function getTweetData() {
     return null;
   }
 
+  // Function to extract images from a tweet
+  function getTweetImages(article, tweetLink) {
+    const images = [];
+    
+    // Find all img elements that are media images
+    const imgElements = article.querySelectorAll('img');
+    console.log(`🔍 TsPocket: Checking ${imgElements.length} images in tweet`);
+    
+    imgElements.forEach(img => {
+      const alt = img.getAttribute('alt') || '';
+      const src = img.src || '';
+      
+      // Filter logic - only include actual tweet media
+      // Based on your working script, simplify the filter
+      if (alt.toLowerCase() === 'profile image' || 
+          src.includes('profile_images') || 
+          src.includes('emoji')) {
+        return; // Skip this image
+      }
+      
+      // Only include images from Twitter's media CDN
+      if (!src.includes('pbs.twimg.com') && !src.includes('video.twimg.com')) {
+        return; // Skip non-media images
+      }
+      
+      // Try to find the parent link that wraps this image
+      let imageLink = null;
+      let parent = img.parentElement;
+      
+      // Walk up the DOM tree to find a link that contains /photo/
+      while (parent && parent !== article) {
+        if (parent.tagName === 'A' && parent.href) {
+          // Check if this is a photo link
+          if (parent.href.includes('/photo/')) {
+            imageLink = parent.href;
+            break;
+          }
+        }
+        parent = parent.parentElement;
+      }
+      
+      // If no direct photo link found, construct one from the tweet link
+      if (!imageLink && tweetLink) {
+        // Extract photo number from the image URL if possible
+        const photoMatch = src.match(/\/(\d+)\?/);
+        if (photoMatch) {
+          imageLink = `${tweetLink}/photo/${photoMatch[1]}`;
+        } else {
+          // Default to /photo/1 for the first image
+          const existingPhotoCount = images.length;
+          imageLink = `${tweetLink}/photo/${existingPhotoCount + 1}`;
+        }
+      }
+      
+      images.push({
+        src: src,
+        alt: alt || 'Tweet image',
+        link: imageLink
+      });
+      
+      console.log(`✅ TsPocket: Added image ${images.length}:`, src.substring(0, 50) + '...');
+    });
+    
+    console.log(`🖼️ TsPocket: Found ${images.length} valid images in tweet`);
+    return images;
+  }
+
   console.log(`📊 TsPocket: Found ${tweets.length} article elements`);
   
   const tweetData = Array.from(tweets).map(article => {
     const textElem = article.querySelector('div[lang]');
     const timeElem = article.querySelector('time');
+    const tweetLink = getTweetLink(article);
+    const images = getTweetImages(article, tweetLink);
+    
     return {
       article: article, // Keep reference to the article element
       text: textElem ? textElem.innerText : null,
@@ -52,7 +122,8 @@ function getTweetData() {
       likes: getCount(article, "like"),
       retweets: getCount(article, "retweet"),
       replies: getCount(article, "reply"),
-      link: getTweetLink(article)
+      link: tweetLink,
+      images: images.length > 0 ? images : null
     };
   });
 
@@ -61,6 +132,12 @@ function getTweetData() {
     if (tweet.link) {
       console.log(`Tweet ${index + 1}: ${tweet.link}`);
       console.log(`Text preview: ${tweet.text ? tweet.text.substring(0, 50) + '...' : 'No text'}`);
+      if (tweet.images) {
+        console.log(`Images: ${tweet.images.length} image(s) found`);
+        tweet.images.forEach((img, imgIndex) => {
+          console.log(`  Image ${imgIndex + 1}: ${img.link || 'No permalink'}`);
+        });
+      }
     }
   });
   
@@ -86,12 +163,15 @@ function findTweetWithText(selectedText) {
     if (tweet.text && tweet.text.includes(selectedText)) {
       console.log('TsPocket: Found matching tweet!', {
         link: tweet.link,
-        text: tweet.text.substring(0, 100) + '...'
+        text: tweet.text.substring(0, 100) + '...',
+        hasImages: !!tweet.images,
+        imageCount: tweet.images ? tweet.images.length : 0
       });
       return {
         article: tweet.article,
         link: tweet.link,
-        text: tweet.text
+        text: tweet.text,
+        images: tweet.images
       };
     }
   }
@@ -135,11 +215,15 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           },
           tweetInfo: {
             url: tweetInfo.link,
-            fullText: tweetInfo.text
+            fullText: tweetInfo.text,
+            images: tweetInfo.images
           }
         };
         
         console.log('TsPocket: Sending enhanced data with tweet URL:', tweetInfo.link);
+        if (tweetInfo.images) {
+          console.log('TsPocket: Including images:', tweetInfo.images.length);
+        }
         console.log('TsPocket: Full selection data being sent:', JSON.stringify(selectionData, null, 2));
         sendResponse(selectionData);
       } else {
@@ -191,7 +275,8 @@ document.addEventListener('contextmenu', (e) => {
           },
           tweetInfo: {
             url: tweetInfo.link,
-            fullText: tweetInfo.text
+            fullText: tweetInfo.text,
+            images: tweetInfo.images
           }
         };
         
