@@ -163,10 +163,21 @@ function displayRecentSaves(articles) {
     
     const articleId = article.noteId || article.id || article.url;
     
+    // Add highlight indicator if this is a text selection
+    const highlightIndicator = article.isHighlight ? '<span class="highlight-indicator" title="Text selection">📌</span>' : '';
+    
+    // Add link indicator if highlight contains links
+    const linkIndicator = article.hasLinks ? '<span class="link-indicator" title="Contains links">🔗</span>' : '';
+    
+    // Show description for highlights instead of URL
+    const displayContent = article.isHighlight && article.description
+      ? `<div class="recent-item-description">${escapeHtml(article.description)}</div>`
+      : `<div class="recent-item-url">${escapeHtml(domain)}</div>`;
+    
     return `
-      <div class="recent-item" data-url="${escapeHtml(article.url)}" data-note-id="${escapeHtml(articleId)}">
-        <div class="recent-item-title">${escapeHtml(article.title)}</div>
-        <div class="recent-item-url">${escapeHtml(domain)}</div>
+      <div class="recent-item ${article.isHighlight ? 'is-highlight' : ''} ${article.hasLinks ? 'has-links' : ''}" data-url="${escapeHtml(article.url)}" data-note-id="${escapeHtml(articleId)}">
+        <div class="recent-item-title">${highlightIndicator}${linkIndicator}${escapeHtml(article.title)}</div>
+        ${displayContent}
         ${tags}
         <div class="recent-item-time">${escapeHtml(timeAgo)}</div>
         <button class="delete-btn" data-note-id="${escapeHtml(articleId)}" title="Delete">×</button>

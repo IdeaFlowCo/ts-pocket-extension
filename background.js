@@ -67,12 +67,22 @@ async function initializeExtension() {
     // Create context menu (remove existing first to avoid duplicates)
     try {
       await chromeApi.contextMenus.removeAll();
+      
+      // Create parent menu
       await chromeApi.contextMenus.create({
         id: 'saveToTsPocket',
         title: 'Save to TsPocket',
-        contexts: ['page', 'selection', 'link']
+        contexts: ['page', 'link']
       });
-      log.info('Context menu created');
+      
+      // Create separate menu for text selection
+      await chromeApi.contextMenus.create({
+        id: 'saveSelectionToTsPocket',
+        title: 'Save Selection as Highlight',
+        contexts: ['selection']
+      });
+      
+      log.info('Context menus created');
     } catch (error) {
       log.error('Failed to create context menu:', error);
     }
@@ -466,6 +476,313 @@ Saved: ${new Date(article.savedAt).toLocaleString()}`;
   return response;
 }
 
+// Handle text selection saves
+async function handleSaveSelection(tab, selectedText, pageUrl) {
+  log.info('Starting selection save', { 
+    url: pageUrl, 
+    textLength: selectedText.length,
+    tabId: tab.id 
+  });
+  
+  try {
+    // Show saving badge
+    await chromeApi.updateBadge(tab.id, '...', '#4CAF50', 0);
+    
+    // Create selection data
+    const selectionData = {
+      title: tab.title || 'Untitled Page',
+      url: pageUrl || tab.url,
+      selectedText: selectedText,
+      savedAt: new Date().toISOString()
+    };
+    
+    // Save with #highlight tag
+    const result = await saveSelectionToThoughtstream(selectionData);
+    
+    log.info('Selection save completed', { noteId: result.noteId });
+    
+    // Store in local history with compact format
+    const savedArticles = await storageService.getSavedArticles();
+    
+    // Extract domain for compact display
+    let domain = '';
+    try {
+      const urlObj = new URL(selectionData.url);
+      domain = urlObj.hostname.replace('www.', '');
+    } catch (e) {
+      domain = 'unknown';
+    }
+    
+    savedArticles.unshift({
+      title: domain,  // Just show domain as title
+      url: selectionData.url,
+      domain: domain,  // Store domain separately for search
+      description: selectedText.substring(0, 200) + (selectedText.length > 200 ? '...' : ''),
+      content: selectedText,
+      author: '',
+      publishedTime: '',
+      images: [],
+      savedAt: selectionData.savedAt,
+      noteId: result.noteId,
+      tags: ['highlight'],
+      isHighlight: true,
+      originalPageTitle: selectionData.title  // Store original title for reference
+    });
+    
+    // Keep only last 100 items
+    if (savedArticles.length > 100) {
+      savedArticles.pop();
+    }
+    
+    await storageService.setSavedArticles(savedArticles);
+    
+    // Show success
+    await chromeApi.updateBadge(tab.id, '✓', '#4CAF50', 3000);
+    
+    return { success: true, noteId: result.noteId };
+  } catch (error) {
+    log.error('handleSaveSelection failed', { error: error.message });
+    await chromeApi.updateBadge(tab.id, '✗', '#f44336', 3000);
+    throw error;
+  }
+}
+
+// Handle text selection with link information
+async function handleSaveSelectionWithLinks(tab, selectionData) {
+  log.info('Starting selection save with links', { 
+    url: selectionData.pageInfo.url, 
+    textLength: selectionData.text.length,
+    linkCount: selectionData.links.length,
+    tabId: tab.id 
+  });
+  
+  try {
+    // Show saving badge
+    await chromeApi.updateBadge(tab.id, '...', '#4CAF50', 0);
+    
+    // Prepare the selection data for saving
+    const enrichedData = {
+      title: selectionData.pageInfo.title || tab.title || 'Untitled Page',
+      url: selectionData.pageInfo.url || tab.url,
+      selectedText: selectionData.markdownText || selectionData.text,  // Use markdown version if available
+      plainText: selectionData.text,  // Keep plain text for search
+      links: selectionData.links,
+      hasLinks: selectionData.hasLinks,
+      savedAt: new Date().toISOString(),
+      tweetInfo: selectionData.tweetInfo || null,
+      platform: selectionData.pageInfo.platform || null
+    };
+    
+    // Save with #highlight tag
+    const result = await saveSelectionToThoughtstream(enrichedData);
+    
+    log.info('Selection with links saved', { noteId: result.noteId });
+    
+    // Store in local history with enriched format
+    const savedArticles = await storageService.getSavedArticles();
+    
+    // Extract domain for compact display
+    let domain = '';
+    try {
+      const urlObj = new URL(enrichedData.url);
+      domain = urlObj.hostname.replace('www.', '');
+    } catch (e) {
+      domain = 'unknown';
+    }
+    
+    // Create description with link indicators (use plain text for display)
+    let description = enrichedData.plainText.substring(0, 200);
+    if (enrichedData.hasLinks) {
+      description += ` [${enrichedData.links.length} link${enrichedData.links.length > 1 ? 's' : ''}]`;
+    }
+    if (enrichedData.plainText.length > 200) {
+      description += '...';
+    }
+    
+    // For Twitter, show tweet author as title if available
+    let displayTitle = domain;
+    if (enrichedData.platform === 'twitter' && enrichedData.tweetInfo?.author) {
+      const username = enrichedData.tweetInfo.author.username || enrichedData.tweetInfo.author.name;
+      if (username) {
+        // Add @ if not already present
+        displayTitle = username.startsWith('@') ? username : `@${username}`;
+      }
+    }
+    
+    savedArticles.unshift({
+      title: displayTitle,
+      url: enrichedData.url,
+      domain: domain,
+      description: description,
+      content: enrichedData.selectedText,
+      links: enrichedData.links,
+      hasLinks: enrichedData.hasLinks,
+      author: enrichedData.tweetInfo?.author?.name || '',
+      publishedTime: '',
+      images: [],
+      savedAt: enrichedData.savedAt,
+      noteId: result.noteId,
+      tags: ['highlight'],
+      isHighlight: true,
+      originalPageTitle: enrichedData.title,
+      platform: enrichedData.platform,
+      tweetInfo: enrichedData.tweetInfo
+    });
+    
+    // Keep only last 100 items
+    if (savedArticles.length > 100) {
+      savedArticles.pop();
+    }
+    
+    await storageService.setSavedArticles(savedArticles);
+    
+    // Show success
+    await chromeApi.updateBadge(tab.id, '✓', '#4CAF50', 3000);
+    
+    return { success: true, noteId: result.noteId };
+  } catch (error) {
+    log.error('handleSaveSelectionWithLinks failed', { error: error.message });
+    await chromeApi.updateBadge(tab.id, '✗', '#f44336', 3000);
+    throw error;
+  }
+}
+
+// Save selection to Thoughtstream
+async function saveSelectionToThoughtstream(selectionData) {
+  log.info('saveSelectionToThoughtstream called');
+
+  try {
+    const noteId = generateShortId();
+    const userId = (await storageService.getUserInfo()).userId;
+    const timestamp = new Date().toISOString();
+    const positionValue = String(-new Date().getTime());
+
+    if (!userId) {
+      throw new Error('User ID not found. Please login again.');
+    }
+
+    // Create tokens array
+    const tokens = [];
+    
+    // First paragraph: #highlight tag
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [
+        { type: 'hashtag', content: '#highlight' },
+        { type: 'text', content: ' ', marks: [] }
+      ],
+      depth: 0
+    });
+    
+    // Second paragraph: URL only (more compact)
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [
+        { type: 'text', content: selectionData.url, marks: [] }
+      ],
+      depth: 0
+    });
+    
+    // Third paragraph: Empty line
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [{ type: 'text', content: '', marks: [] }],
+      depth: 0
+    });
+    
+    // Fourth paragraph: Selected text
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [
+        { type: 'text', content: selectionData.selectedText, marks: [] }
+      ],
+      depth: 0
+    });
+
+        
+    // If there are links, add them as a separate paragraph
+    if (selectionData.links && selectionData.links.length > 0) {
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [{ type: 'text', content: '', marks: [] }],
+        depth: 0
+      });
+      
+      // Add links section header
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [
+          { type: 'text', content: '---', marks: [] }
+        ],
+        depth: 0
+      });
+      
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [
+          { type: 'text', content: `🔗 Links found in selection (${selectionData.links.length}):`, marks: [] }
+        ],
+        depth: 0
+      });
+      
+      // Add each link
+      selectionData.links.forEach((link, index) => {
+        tokens.push({
+          type: 'paragraph',
+          tokenId: generateShortId(),
+          content: [
+            { type: 'text', content: `${index + 1}. [${link.text}](${link.url})`, marks: [] }
+          ],
+          depth: 0
+        });
+      });
+    }
+
+    const noteData = {
+      id: noteId,
+      authorId: userId,
+      tokens: tokens,
+      position: positionValue,
+      readAll: false,
+      createdAt: timestamp,
+      updatedAt: timestamp,
+      deletedAt: null,
+      folderId: null,
+      insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+      isSharedPrivately: false,
+      directUrlOnly: true,
+      expansionSetting: 'auto'
+    };
+
+    log.info('Selection note data prepared', { 
+      noteId: noteData.id,
+      tokenCount: tokens.length 
+    });
+
+    const response = await apiClient.post('/notes', { notes: [noteData] });
+
+    const createdNote = response?.data?.find(note => note.id === noteId);
+    if (createdNote) {
+        log.info('✅ SUCCESS: Selection saved.', { noteId });
+        return { noteId, response };
+    } else {
+        log.error('❌ FAILURE: Selection save not confirmed.', { sentNoteId: noteId });
+        throw new Error('API did not confirm selection save.');
+    }
+
+  } catch (error) {
+    log.error('saveSelectionToThoughtstream failed', { error: error.message });
+    throw error;
+  }
+}
+
 // Message handler with initialization check
 chromeApi.runtime.onMessage.addListener((request, sender, sendResponse) => {
   log.info('Message received', { action: request.action, from: sender.tab?.url || 'extension' });
@@ -509,6 +826,34 @@ async function handleMessage(request, sender, sendResponse) {
         sendResponse(result);
       } catch (error) {
         log.info('Save action failed', { 
+          error: error.message,
+          stack: error.stack 
+        });
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Will respond asynchronously
+  }
+  
+  if (request.action === 'saveSelection') {
+    (async () => {
+      try {
+        log.info('Save selection action');
+        const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
+        
+        const result = await handleSaveSelection(
+          tabs[0], 
+          request.selectedText, 
+          request.pageUrl || tabs[0].url
+        );
+        
+        log.info('handleSaveSelection completed', { 
+          success: result.success,
+          hasNoteId: !!result.noteId 
+        });
+        sendResponse(result);
+      } catch (error) {
+        log.info('Save selection failed', { 
           error: error.message,
           stack: error.stack 
         });
@@ -589,15 +934,82 @@ async function handleMessage(request, sender, sendResponse) {
     });
     return true;
   }
+  
+  if (request.action === 'storeSelectionData') {
+    // Store selection data temporarily for context menu use
+    lastSelectionData = request.data;
+    sendResponse({ success: true });
+    return true;
+  }
 }
 
 // Context menu
 
-chromeApi.contextMenus.onClicked.addListener((info, tab) => {
+// Store temporary selection data from content script
+let lastSelectionData = null;
+
+chromeApi.contextMenus.onClicked.addListener(async (info, tab) => {
   if (info.menuItemId === 'saveToTsPocket') {
+    // Handle full page save
     handleSave(tab).catch(error => {
       log.error('Context menu save failed:', error);
     });
+  } else if (info.menuItemId === 'saveSelectionToTsPocket') {
+    // Handle text selection save
+    if (info.selectionText) {
+      try {
+        // Try to get rich selection data from content script
+        let selectionData = null;
+        try {
+          selectionData = await chromeApi.tabs.sendMessage(tab.id, { action: 'extractSelection' });
+          log.info('Got selection data from content script', { 
+            hasData: !!selectionData,
+            hasText: !!(selectionData?.text),
+            platform: selectionData?.pageInfo?.platform,
+            url: selectionData?.pageInfo?.url
+          });
+        } catch (e) {
+          log.info('Failed to get selection data from content script', { error: e.message });
+        }
+        
+        // If we didn't get data from content script, check stored data
+        if (!selectionData && lastSelectionData) {
+          log.info('Using stored selection data');
+          selectionData = lastSelectionData;
+          lastSelectionData = null; // Clear it after use
+        }
+        
+        log.info('Selection extraction response', {
+          hasStoredData: !!lastSelectionData,
+          hasResponse: !!selectionData,
+          hasText: !!(selectionData?.text),
+          hasTweetInfo: !!(selectionData?.tweetInfo),
+          pageUrl: selectionData?.pageInfo?.url,
+          platform: selectionData?.pageInfo?.platform
+        });
+        
+        if (selectionData && selectionData.text) {
+          // Use rich selection data with link information
+          handleSaveSelectionWithLinks(tab, selectionData).catch(error => {
+            log.error('Selection save with links failed:', error);
+          });
+          
+          // Clear stored data after use
+          lastSelectionData = null;
+        } else {
+          // Fallback to simple text selection
+          handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
+            log.error('Selection save failed:', error);
+          });
+        }
+      } catch (e) {
+        // Content script not available, use simple selection
+        log.info('Content script not available, using simple selection', { error: e.message });
+        handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
+          log.error('Selection save failed:', error);
+        });
+      }
+    }
   }
 });
 
