@@ -2,6 +2,8 @@
 import CONFIG from './config.js';
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
+import logger from './logger.js';
+import Fuse from './fuse.mjs';
 
 // DOM Elements
 const mainView = document.getElementById('mainView');
@@ -38,7 +40,7 @@ let fuse = null; // Fuse.js instance
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
-  console.log('Fuse.js loaded:', typeof Fuse !== 'undefined');
+  logger.info('Popup loaded', { fuseAvailable: typeof Fuse !== 'undefined' });
   
   // Check authentication status
   await checkAuthStatus();
@@ -125,7 +127,10 @@ async function loadRecentSaves() {
         distance: 100 // Maximum distance between matched characters
       };
       fuse = new Fuse(allSavedArticles, fuseOptions);
-      console.log('Fuse.js initialized with options:', fuseOptions);
+      logger.info('Fuse.js initialized', { 
+        articleCount: allSavedArticles.length,
+        threshold: fuseOptions.threshold 
+      });
     }
     
     displayRecentSaves(allSavedArticles);
@@ -144,15 +149,22 @@ function searchArticles(query) {
   
   // Use Fuse.js for fuzzy search if available
   if (fuse) {
-    console.log('Using Fuse.js search for query:', query);
+    logger.debug('Searching with Fuse.js', { query });
     const results = fuse.search(query);
-    console.log('Fuse.js results:', results.length, results.slice(0, 3));
+    logger.debug('Search results', { 
+      query,
+      resultCount: results.length,
+      topResults: results.slice(0, 3).map(r => ({
+        title: r.item.title,
+        score: r.score
+      }))
+    });
     // Return the original items from the search results
     return results.map(result => result.item);
   }
   
   // Fallback to basic search if Fuse.js is not initialized
-  console.log('Falling back to basic search (Fuse not available)');
+  logger.debug('Using basic search (Fuse not available)');
   const searchTerm = query.toLowerCase();
   return allSavedArticles.filter(article => {
     const searchableText = [
