@@ -1,7 +1,7 @@
 // Content script for extracting selection with link information
 
-// Function to convert selection to markdown with links
-function convertToMarkdown(container, plainText) {
+// Function to clean selection text by removing link markup
+function cleanSelectionText(container, plainText) {
   try {
     // Create a working copy of the container
     const workingContainer = container.cloneNode(true);
@@ -13,11 +13,8 @@ function convertToMarkdown(container, plainText) {
       const text = anchor.textContent;
       
       if (href && text && anchor.parentNode) {
-        // Create markdown link
-        const markdownLink = `[${text}](${href})`;
-        
-        // Replace the anchor with a text node
-        const textNode = document.createTextNode(markdownLink);
+        // Replace the anchor with just its text content (remove the link)
+        const textNode = document.createTextNode(text);
         try {
           anchor.parentNode.replaceChild(textNode, anchor);
         } catch (e) {
@@ -27,17 +24,17 @@ function convertToMarkdown(container, plainText) {
       }
     });
     
-    // Get the markdown text
-    let markdownText = workingContainer.textContent || '';
+    // Get the cleaned text
+    let cleanedText = workingContainer.textContent || '';
     
     // Clean up extra whitespace and normalize line breaks
-    markdownText = markdownText
+    cleanedText = cleanedText
       .replace(/\r\n/g, '\n')
       .replace(/\n{3,}/g, '\n\n')
       .replace(/[ \t]+/g, ' ')
       .trim();
     
-    return markdownText;
+    return cleanedText;
   } catch (error) {
     console.error('Error converting to markdown:', error);
     // Fallback to plain text
@@ -100,17 +97,17 @@ function extractSelectionWithLinks() {
   const contextBefore = fullText.substring(contextStart, selectionStart).trim();
   const contextAfter = fullText.substring(selectionStart + plainText.length, contextEnd).trim();
   
-  // Generate markdown version of the selection
-  let markdownText = plainText; // Default to plain text
+  // Generate cleaned version of the selection (with links removed)
+  let cleanedText = plainText; // Default to plain text
   try {
-    markdownText = convertToMarkdown(container, plainText);
+    cleanedText = cleanSelectionText(container, plainText);
   } catch (e) {
-    console.error('Markdown conversion failed:', e);
+    console.error('Text cleaning failed:', e);
   }
   
   const result = {
     text: plainText,
-    markdownText: markdownText,
+    markdownText: cleanedText,
     links: links,
     hasLinks: links.length > 0,
     context: {
