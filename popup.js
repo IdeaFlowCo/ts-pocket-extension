@@ -163,9 +163,12 @@ function displayRecentSaves(articles) {
     
     const articleId = article.noteId || article.id || article.url;
     
+    // Add highlight indicator if this is a text selection
+    const highlightIndicator = article.isHighlight ? '<span class="highlight-indicator" title="Text selection">📌</span>' : '';
+    
     return `
-      <div class="recent-item" data-url="${escapeHtml(article.url)}" data-note-id="${escapeHtml(articleId)}">
-        <div class="recent-item-title">${escapeHtml(article.title)}</div>
+      <div class="recent-item ${article.isHighlight ? 'is-highlight' : ''}" data-url="${escapeHtml(article.url)}" data-note-id="${escapeHtml(articleId)}">
+        <div class="recent-item-title">${highlightIndicator}${escapeHtml(article.title)}</div>
         <div class="recent-item-url">${escapeHtml(domain)}</div>
         ${tags}
         <div class="recent-item-time">${escapeHtml(timeAgo)}</div>

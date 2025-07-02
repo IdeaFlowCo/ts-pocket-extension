@@ -67,12 +67,22 @@ async function initializeExtension() {
     // Create context menu (remove existing first to avoid duplicates)
     try {
       await chromeApi.contextMenus.removeAll();
+      
+      // Create parent menu
       await chromeApi.contextMenus.create({
         id: 'saveToTsPocket',
         title: 'Save to TsPocket',
-        contexts: ['page', 'selection', 'link']
+        contexts: ['page', 'link']
       });
-      log.info('Context menu created');
+      
+      // Create separate menu for text selection
+      await chromeApi.contextMenus.create({
+        id: 'saveSelectionToTsPocket',
+        title: 'Save Selection as Highlight',
+        contexts: ['selection']
+      });
+      
+      log.info('Context menus created');
     } catch (error) {
       log.error('Failed to create context menu:', error);
     }
@@ -786,15 +796,15 @@ async function handleMessage(request, sender, sendResponse) {
 
 chromeApi.contextMenus.onClicked.addListener((info, tab) => {
   if (info.menuItemId === 'saveToTsPocket') {
+    // Handle full page save
+    handleSave(tab).catch(error => {
+      log.error('Context menu save failed:', error);
+    });
+  } else if (info.menuItemId === 'saveSelectionToTsPocket') {
+    // Handle text selection save
     if (info.selectionText) {
-      // Handle text selection save
       handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
         log.error('Selection save failed:', error);
-      });
-    } else {
-      // Handle full page save
-      handleSave(tab).catch(error => {
-        log.error('Context menu save failed:', error);
       });
     }
   }
