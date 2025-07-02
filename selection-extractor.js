@@ -19,13 +19,21 @@ function extractSelectionWithLinks() {
     return null;
   }
   
+  // Debug logging
+  console.log('TsPocket: Selection HTML:', container.innerHTML);
+  console.log('TsPocket: Plain text:', plainText);
+  
   // Extract links from the selection
   const links = [];
   const anchors = container.querySelectorAll('a[href]');
   
-  anchors.forEach(anchor => {
+  console.log('TsPocket: Found anchors:', anchors.length);
+  
+  anchors.forEach((anchor, index) => {
     const href = anchor.getAttribute('href');
     const text = anchor.textContent.trim();
+    
+    console.log(`TsPocket: Anchor ${index}:`, { href, text });
     
     if (href && text) {
       // Make absolute URL
@@ -34,6 +42,7 @@ function extractSelectionWithLinks() {
         absoluteUrl = new URL(href, window.location.href).href;
       } catch (e) {
         // Invalid URL, use as-is
+        console.log('TsPocket: URL parsing error:', e);
       }
       
       links.push({
@@ -54,7 +63,7 @@ function extractSelectionWithLinks() {
   const contextBefore = fullText.substring(contextStart, selectionStart).trim();
   const contextAfter = fullText.substring(selectionStart + plainText.length, contextEnd).trim();
   
-  return {
+  const result = {
     text: plainText,
     links: links,
     hasLinks: links.length > 0,
@@ -67,6 +76,9 @@ function extractSelectionWithLinks() {
       title: document.title
     }
   };
+  
+  console.log('TsPocket: Final extraction result:', result);
+  return result;
 }
 
 // Listen for messages from the extension
