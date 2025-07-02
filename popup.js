@@ -2,11 +2,14 @@
 import CONFIG from './config.js';
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
+import logger from './logger.js';
+import Fuse from './fuse.mjs';
 
 // DOM Elements
 const mainView = document.getElementById('mainView');
 const settingsView = document.getElementById('settingsView');
 const quickSaveBtn = document.getElementById('quickSaveBtn');
+const thoughtstreamBtn = document.getElementById('thoughtstreamBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const backBtn = document.getElementById('backBtn');
 const authBtn = document.getElementById('authBtn');
@@ -33,9 +36,12 @@ let isAuthenticated = false;
 let lastSavedNoteId = null;
 let allSavedArticles = [];
 let pendingAction = null;
+let fuse = null; // Fuse.js instance
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
+  logger.info('Popup loaded', { fuseAvailable: typeof Fuse !== 'undefined' });
+  
   // Check authentication status
   await checkAuthStatus();
   
@@ -101,6 +107,32 @@ async function loadRecentSaves() {
   try {
     const savedArticles = await storageService.getSavedArticles();
     allSavedArticles = savedArticles || [];
+    
+    // Initialize Fuse.js with weighted search configuration
+    if (allSavedArticles.length > 0 && typeof Fuse !== 'undefined') {
+      const fuseOptions = {
+        keys: [
+          { name: 'title', weight: 0.4 },
+          { name: 'url', weight: 0.3 },
+          { name: 'tags', weight: 0.2 },
+          { name: 'content', weight: 0.05 },
+          { name: 'description', weight: 0.05 }
+        ],
+        threshold: 0.4, // Increased from 0.3 for more fuzzy matches
+        ignoreLocation: true,
+        includeScore: true,
+        shouldSort: true,
+        minMatchCharLength: 2, // Minimum character length to match
+        findAllMatches: true, // Find all matches in the string
+        distance: 100 // Maximum distance between matched characters
+      };
+      fuse = new Fuse(allSavedArticles, fuseOptions);
+      logger.info('Fuse.js initialized', { 
+        articleCount: allSavedArticles.length,
+        threshold: fuseOptions.threshold 
+      });
+    }
+    
     displayRecentSaves(allSavedArticles);
   } catch (error) {
     console.error('Failed to load saved articles:', error);
@@ -115,6 +147,24 @@ function searchArticles(query) {
     return allSavedArticles;
   }
   
+  // Use Fuse.js for fuzzy search if available
+  if (fuse) {
+    logger.debug('Searching with Fuse.js', { query });
+    const results = fuse.search(query);
+    logger.debug('Search results', { 
+      query,
+      resultCount: results.length,
+      topResults: results.slice(0, 3).map(r => ({
+        title: r.item.title,
+        score: r.score
+      }))
+    });
+    // Return the original items from the search results
+    return results.map(result => result.item);
+  }
+  
+  // Fallback to basic search if Fuse.js is not initialized
+  logger.debug('Using basic search (Fuse not available)');
   const searchTerm = query.toLowerCase();
   return allSavedArticles.filter(article => {
     const searchableText = [
@@ -240,6 +290,13 @@ function setupEventListeners() {
     }
   });
   
+  // Thoughtstream button
+  thoughtstreamBtn.addEventListener('click', async () => {
+    const thoughtstreamUrl = 'https://ideaflow.app';
+    await chrome.tabs.create({ url: thoughtstreamUrl, active: true });
+    window.close(); // Close the popup after opening
+  });
+  
   // Settings navigation
   settingsBtn.addEventListener('click', () => showView('settings'));
   backBtn.addEventListener('click', () => showView('main'));
@@ -294,11 +351,16 @@ function setupEventListeners() {
   
   // Authentication is handled via OAuth login
   
-  // Search input
+  // Search input with debouncing for better performance
+  let searchTimeout;
   searchInput.addEventListener('input', (e) => {
+    clearTimeout(searchTimeout);
     const query = e.target.value;
-    const filtered = searchArticles(query);
-    displayRecentSaves(filtered);
+    
+    searchTimeout = setTimeout(() => {
+      const filtered = searchArticles(query);
+      displayRecentSaves(filtered);
+    }, 150); // 150ms debounce
   });
   
   // Import button

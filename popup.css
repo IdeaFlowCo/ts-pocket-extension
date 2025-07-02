@@ -37,6 +37,12 @@ body {
   color: #019AB0;
 }
 
+.header-buttons {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
 .icon-btn {
   background: none;
   border: none;

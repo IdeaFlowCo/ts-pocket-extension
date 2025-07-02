@@ -362,16 +362,12 @@ async function handleSave(tab, tags = []) {
     log.info('Save completed', { noteId: result.noteId });
     
     // Store in local history
-    const savedArticles = await storageService.getSavedArticles();
-    savedArticles.unshift({
+    await storageService.addSavedArticle({
       ...articleData,
       noteId: result.noteId,
       tags: tags,
       savedAt: new Date().toISOString(),
     });
-    
-    // Storage service handles limiting articles
-    await storageService.setSavedArticles(savedArticles);
     
     // Show success badge
     await chromeApi.updateBadge(tab.id, '✓', '#4CAF50');
@@ -502,8 +498,6 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
     log.info('Selection save completed', { noteId: result.noteId });
     
     // Store in local history with compact format
-    const savedArticles = await storageService.getSavedArticles();
-    
     // Extract domain for compact display
     let domain = '';
     try {
@@ -513,7 +507,7 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
       domain = 'unknown';
     }
     
-    savedArticles.unshift({
+    await storageService.addSavedArticle({
       title: domain,  // Just show domain as title
       url: selectionData.url,
       domain: domain,  // Store domain separately for search
@@ -528,13 +522,6 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
       isHighlight: true,
       originalPageTitle: selectionData.title  // Store original title for reference
     });
-    
-    // Keep only last 100 items
-    if (savedArticles.length > 100) {
-      savedArticles.pop();
-    }
-    
-    await storageService.setSavedArticles(savedArticles);
     
     // Show success
     await chromeApi.updateBadge(tab.id, '✓', '#4CAF50', 3000);
@@ -560,6 +547,13 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
     // Show saving badge
     await chromeApi.updateBadge(tab.id, '...', '#4CAF50', 0);
     
+    // Log the incoming selection data
+    log.info('handleSaveSelectionWithLinks received data', {
+      hasTweetInfo: !!selectionData.tweetInfo,
+      tweetInfoImages: selectionData.tweetInfo ? selectionData.tweetInfo.images : null,
+      platform: selectionData.pageInfo ? selectionData.pageInfo.platform : null
+    });
+    
     // Prepare the selection data for saving
     const enrichedData = {
       title: selectionData.pageInfo.title || tab.title || 'Untitled Page',
@@ -579,8 +573,6 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
     log.info('Selection with links saved', { noteId: result.noteId });
     
     // Store in local history with enriched format
-    const savedArticles = await storageService.getSavedArticles();
-    
     // Extract domain for compact display
     let domain = '';
     try {
@@ -609,7 +601,7 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       }
     }
     
-    savedArticles.unshift({
+    await storageService.addSavedArticle({
       title: displayTitle,
       url: enrichedData.url,
       domain: domain,
@@ -619,7 +611,7 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       hasLinks: enrichedData.hasLinks,
       author: enrichedData.tweetInfo?.author?.name || '',
       publishedTime: '',
-      images: [],
+      images: enrichedData.tweetInfo?.images || [],
       savedAt: enrichedData.savedAt,
       noteId: result.noteId,
       tags: ['highlight'],
@@ -628,13 +620,6 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       platform: enrichedData.platform,
       tweetInfo: enrichedData.tweetInfo
     });
-    
-    // Keep only last 100 items
-    if (savedArticles.length > 100) {
-      savedArticles.pop();
-    }
-    
-    await storageService.setSavedArticles(savedArticles);
     
     // Show success
     await chromeApi.updateBadge(tab.id, '✓', '#4CAF50', 3000);
@@ -685,7 +670,7 @@ async function saveSelectionToThoughtstream(selectionData) {
       depth: 0
     });
     
-    // Third paragraph: Empty line
+    // Third paragraph: Empty line (linebreak before note as requested)
     tokens.push({
       type: 'paragraph',
       tokenId: generateShortId(),
@@ -704,6 +689,72 @@ async function saveSelectionToThoughtstream(selectionData) {
     });
 
         
+    // If there are images (from Twitter), add them  
+    log.info('Checking for Twitter images', { 
+      hasTweetInfo: !!selectionData.tweetInfo,
+      hasImages: !!(selectionData.tweetInfo && selectionData.tweetInfo.images),
+      imageCount: selectionData.tweetInfo && selectionData.tweetInfo.images ? selectionData.tweetInfo.images.length : 0
+    });
+    
+    if (selectionData.tweetInfo && selectionData.tweetInfo.images && selectionData.tweetInfo.images.length > 0) {
+      log.info('Adding Twitter images to note', { count: selectionData.tweetInfo.images.length });
+      
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [{ type: 'text', content: '', marks: [] }],
+        depth: 0
+      });
+      
+      // Add images section header
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [
+          { type: 'text', content: '---', marks: [] }
+        ],
+        depth: 0
+      });
+      
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [
+          { type: 'text', content: `🖼️ Images in tweet (${selectionData.tweetInfo.images.length}):`, marks: [] }
+        ],
+        depth: 0
+      });
+      
+      // Add each image as a paragraph with the image URL and permalink
+      selectionData.tweetInfo.images.forEach((image, index) => {
+        // Create content with image and link
+        const imageContent = [];
+        
+        // Add the image markdown
+        imageContent.push({
+          type: 'text',
+          content: `${image.src}`,
+          marks: []
+        });
+        
+        // Add link to view on Twitter if available
+        if (image.link) {
+          imageContent.push({
+            type: 'text',
+            content: ` ${image.link}`,
+            marks: []
+          });
+        }
+        
+        tokens.push({
+          type: 'paragraph',
+          tokenId: generateShortId(),
+          content: imageContent,
+          depth: 0
+        });
+      });
+    }
+
     // If there are links, add them as a separate paragraph
     if (selectionData.links && selectionData.links.length > 0) {
       tokens.push({
@@ -984,6 +1035,7 @@ chromeApi.contextMenus.onClicked.addListener(async (info, tab) => {
           hasResponse: !!selectionData,
           hasText: !!(selectionData?.text),
           hasTweetInfo: !!(selectionData?.tweetInfo),
+          tweetImages: selectionData?.tweetInfo?.images,
           pageUrl: selectionData?.pageInfo?.url,
           platform: selectionData?.pageInfo?.platform
         });
