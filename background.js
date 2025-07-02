@@ -562,13 +562,15 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
     
     // Prepare the selection data for saving
     const enrichedData = {
-      title: tab.title || 'Untitled Page',
+      title: selectionData.pageInfo.title || tab.title || 'Untitled Page',
       url: selectionData.pageInfo.url || tab.url,
       selectedText: selectionData.markdownText || selectionData.text,  // Use markdown version if available
       plainText: selectionData.text,  // Keep plain text for search
       links: selectionData.links,
       hasLinks: selectionData.hasLinks,
-      savedAt: new Date().toISOString()
+      savedAt: new Date().toISOString(),
+      tweetInfo: selectionData.tweetInfo || null,
+      platform: selectionData.pageInfo.platform || null
     };
     
     // Save with #highlight tag
@@ -597,22 +599,34 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       description += '...';
     }
     
+    // For Twitter, show tweet author as title if available
+    let displayTitle = domain;
+    if (enrichedData.platform === 'twitter' && enrichedData.tweetInfo?.author) {
+      const username = enrichedData.tweetInfo.author.username || enrichedData.tweetInfo.author.name;
+      if (username) {
+        // Add @ if not already present
+        displayTitle = username.startsWith('@') ? username : `@${username}`;
+      }
+    }
+    
     savedArticles.unshift({
-      title: domain,
+      title: displayTitle,
       url: enrichedData.url,
       domain: domain,
       description: description,
       content: enrichedData.selectedText,
       links: enrichedData.links,
       hasLinks: enrichedData.hasLinks,
-      author: '',
+      author: enrichedData.tweetInfo?.author?.name || '',
       publishedTime: '',
       images: [],
       savedAt: enrichedData.savedAt,
       noteId: result.noteId,
       tags: ['highlight'],
       isHighlight: true,
-      originalPageTitle: enrichedData.title
+      originalPageTitle: enrichedData.title,
+      platform: enrichedData.platform,
+      tweetInfo: enrichedData.tweetInfo
     });
     
     // Keep only last 100 items
@@ -688,7 +702,8 @@ async function saveSelectionToThoughtstream(selectionData) {
       ],
       depth: 0
     });
-    
+
+        
     // If there are links, add them as a separate paragraph
     if (selectionData.links && selectionData.links.length > 0) {
       tokens.push({
@@ -944,13 +959,43 @@ chromeApi.contextMenus.onClicked.addListener(async (info, tab) => {
     if (info.selectionText) {
       try {
         // Try to get rich selection data from content script
-        const response = await chromeApi.tabs.sendMessage(tab.id, { action: 'extractSelection' });
+        let selectionData = null;
+        try {
+          selectionData = await chromeApi.tabs.sendMessage(tab.id, { action: 'extractSelection' });
+          log.info('Got selection data from content script', { 
+            hasData: !!selectionData,
+            hasText: !!(selectionData?.text),
+            platform: selectionData?.pageInfo?.platform,
+            url: selectionData?.pageInfo?.url
+          });
+        } catch (e) {
+          log.info('Failed to get selection data from content script', { error: e.message });
+        }
         
-        if (response && response.text) {
+        // If we didn't get data from content script, check stored data
+        if (!selectionData && lastSelectionData) {
+          log.info('Using stored selection data');
+          selectionData = lastSelectionData;
+          lastSelectionData = null; // Clear it after use
+        }
+        
+        log.info('Selection extraction response', {
+          hasStoredData: !!lastSelectionData,
+          hasResponse: !!selectionData,
+          hasText: !!(selectionData?.text),
+          hasTweetInfo: !!(selectionData?.tweetInfo),
+          pageUrl: selectionData?.pageInfo?.url,
+          platform: selectionData?.pageInfo?.platform
+        });
+        
+        if (selectionData && selectionData.text) {
           // Use rich selection data with link information
-          handleSaveSelectionWithLinks(tab, response).catch(error => {
+          handleSaveSelectionWithLinks(tab, selectionData).catch(error => {
             log.error('Selection save with links failed:', error);
           });
+          
+          // Clear stored data after use
+          lastSelectionData = null;
         } else {
           // Fallback to simple text selection
           handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
@@ -959,7 +1004,7 @@ chromeApi.contextMenus.onClicked.addListener(async (info, tab) => {
         }
       } catch (e) {
         // Content script not available, use simple selection
-        log.info('Content script not available, using simple selection');
+        log.info('Content script not available, using simple selection', { error: e.message });
         handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
           log.error('Selection save failed:', error);
         });
