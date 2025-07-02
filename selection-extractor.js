@@ -2,45 +2,61 @@
 
 // Function to convert selection to markdown with links
 function convertToMarkdown(container, plainText) {
-  // Create a working copy of the container
-  const workingContainer = container.cloneNode(true);
-  
-  // Replace all anchor tags with markdown format
-  const anchors = workingContainer.querySelectorAll('a[href]');
-  anchors.forEach(anchor => {
-    const href = anchor.getAttribute('href');
-    const text = anchor.textContent;
+  try {
+    // Create a working copy of the container
+    const workingContainer = container.cloneNode(true);
     
-    if (href && text) {
-      // Create markdown link
-      const markdownLink = `[${text}](${href})`;
+    // Replace all anchor tags with markdown format
+    const anchors = workingContainer.querySelectorAll('a[href]');
+    anchors.forEach(anchor => {
+      const href = anchor.getAttribute('href');
+      const text = anchor.textContent;
       
-      // Replace the anchor with a text node
-      const textNode = document.createTextNode(markdownLink);
-      anchor.parentNode.replaceChild(textNode, anchor);
-    }
-  });
-  
-  // Get the markdown text
-  let markdownText = workingContainer.textContent.trim();
-  
-  // Clean up extra whitespace
-  markdownText = markdownText.replace(/\s+/g, ' ').trim();
-  
-  return markdownText;
+      if (href && text && anchor.parentNode) {
+        // Create markdown link
+        const markdownLink = `[${text}](${href})`;
+        
+        // Replace the anchor with a text node
+        const textNode = document.createTextNode(markdownLink);
+        try {
+          anchor.parentNode.replaceChild(textNode, anchor);
+        } catch (e) {
+          // If replacement fails, just continue
+          console.warn('Failed to replace anchor:', e);
+        }
+      }
+    });
+    
+    // Get the markdown text
+    let markdownText = workingContainer.textContent || '';
+    
+    // Clean up extra whitespace and normalize line breaks
+    markdownText = markdownText
+      .replace(/\r\n/g, '\n')
+      .replace(/\n{3,}/g, '\n\n')
+      .replace(/[ \t]+/g, ' ')
+      .trim();
+    
+    return markdownText;
+  } catch (error) {
+    console.error('Error converting to markdown:', error);
+    // Fallback to plain text
+    return plainText;
+  }
 }
 
 // Function to extract selection with links
 function extractSelectionWithLinks() {
-  const selection = window.getSelection();
-  
-  if (!selection || selection.rangeCount === 0) {
-    return null;
-  }
-  
-  const range = selection.getRangeAt(0);
-  const container = document.createElement('div');
-  container.appendChild(range.cloneContents());
+  try {
+    const selection = window.getSelection();
+    
+    if (!selection || selection.rangeCount === 0) {
+      return null;
+    }
+    
+    const range = selection.getRangeAt(0);
+    const container = document.createElement('div');
+    container.appendChild(range.cloneContents());
   
   // Extract plain text
   const plainText = selection.toString().trim();
@@ -85,7 +101,12 @@ function extractSelectionWithLinks() {
   const contextAfter = fullText.substring(selectionStart + plainText.length, contextEnd).trim();
   
   // Generate markdown version of the selection
-  const markdownText = convertToMarkdown(container, plainText);
+  let markdownText = plainText; // Default to plain text
+  try {
+    markdownText = convertToMarkdown(container, plainText);
+  } catch (e) {
+    console.error('Markdown conversion failed:', e);
+  }
   
   const result = {
     text: plainText,
@@ -103,6 +124,27 @@ function extractSelectionWithLinks() {
   };
   
   return result;
+  } catch (error) {
+    console.error('Error extracting selection:', error);
+    // Return basic selection data as fallback
+    const selection = window.getSelection();
+    const text = selection ? selection.toString().trim() : '';
+    
+    return {
+      text: text,
+      markdownText: text,
+      links: [],
+      hasLinks: false,
+      context: {
+        before: '',
+        after: ''
+      },
+      pageInfo: {
+        url: window.location.href,
+        title: document.title
+      }
+    };
+  }
 }
 
 // Listen for messages from the extension
