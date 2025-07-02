@@ -311,6 +311,18 @@ body {
   white-space: nowrap;
 }
 
+.recent-item-description {
+  font-size: 12px;
+  color: #555;
+  margin-top: 4px;
+  line-height: 1.4;
+  max-height: 2.8em;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
 .recent-item-time {
   font-size: 11px;
   color: #999;

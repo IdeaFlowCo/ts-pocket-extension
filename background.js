@@ -501,11 +501,22 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
     
     log.info('Selection save completed', { noteId: result.noteId });
     
-    // Store in local history
+    // Store in local history with compact format
     const savedArticles = await storageService.getSavedArticles();
+    
+    // Extract domain for compact display
+    let domain = '';
+    try {
+      const urlObj = new URL(selectionData.url);
+      domain = urlObj.hostname.replace('www.', '');
+    } catch (e) {
+      domain = 'unknown';
+    }
+    
     savedArticles.unshift({
-      title: `Highlight: ${selectionData.title}`,
+      title: domain,  // Just show domain as title
       url: selectionData.url,
+      domain: domain,  // Store domain separately for search
       description: selectedText.substring(0, 200) + (selectedText.length > 200 ? '...' : ''),
       content: selectedText,
       author: '',
@@ -514,7 +525,8 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
       savedAt: selectionData.savedAt,
       noteId: result.noteId,
       tags: ['highlight'],
-      isHighlight: true
+      isHighlight: true,
+      originalPageTitle: selectionData.title  // Store original title for reference
     });
     
     // Keep only last 100 items
@@ -563,17 +575,7 @@ async function saveSelectionToThoughtstream(selectionData) {
       depth: 0
     });
     
-    // Second paragraph: Source info
-    tokens.push({
-      type: 'paragraph',
-      tokenId: generateShortId(),
-      content: [
-        { type: 'text', content: `From: ${selectionData.title}`, marks: [] }
-      ],
-      depth: 0
-    });
-    
-    // Third paragraph: URL
+    // Second paragraph: URL only (more compact)
     tokens.push({
       type: 'paragraph',
       tokenId: generateShortId(),
@@ -583,7 +585,7 @@ async function saveSelectionToThoughtstream(selectionData) {
       depth: 0
     });
     
-    // Fourth paragraph: Empty line
+    // Third paragraph: Empty line
     tokens.push({
       type: 'paragraph',
       tokenId: generateShortId(),
@@ -591,7 +593,7 @@ async function saveSelectionToThoughtstream(selectionData) {
       depth: 0
     });
     
-    // Fifth paragraph: Selected text
+    // Fourth paragraph: Selected text
     tokens.push({
       type: 'paragraph',
       tokenId: generateShortId(),
