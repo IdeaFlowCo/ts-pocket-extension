@@ -432,44 +432,68 @@ async function handleSave(tab, tags = []) {
 async function updateNoteWithTags(noteId, tags) {
   if (!tags || tags.length === 0) return;
   
-  // Get current note data from local storage
-  const savedArticles = await storageService.getSavedArticles();
-  const article = savedArticles.find(a => a.noteId === noteId);
+  log.info('Updating note with tags', { noteId, tags });
   
-  if (!article) {
-    throw new Error('Note not found in local history');
+  try {
+    // Get current note data from local storage
+    const savedArticles = await storageService.getSavedArticles();
+    const articleIndex = savedArticles.findIndex(a => a.noteId === noteId);
+    
+    if (articleIndex === -1) {
+      throw new Error('Note not found in local history');
+    }
+    
+    const article = savedArticles[articleIndex];
+    
+    // Get existing tags from local storage
+    const existingTags = article.tags || ['pocket'];
+    
+    // Combine existing tags with new tags (avoid duplicates)
+    const allTags = [...new Set([...existingTags, ...tags])];
+    
+    // Format all tags as hashtags
+    const hashtagString = allTags.map(tag => tag.startsWith('#') ? tag : `#${tag}`).join(' ');
+    
+    // Create the updated note text
+    // Simple format: tags on first line, then URL
+    const noteText = `${hashtagString}\n\n${article.url}`;
+    
+    // Prepare minimal update payload
+    const updateData = {
+      id: noteId,
+      text: noteText,
+      updatedAt: new Date().toISOString()
+    };
+    
+    log.info('Sending update to API', { noteId, newTagCount: allTags.length, noteText });
+    
+    // Update the note
+    const response = await apiClient.post('/notes', { notes: [updateData] });
+    
+    // Check if we got a response
+    if (!response || !response.data) {
+      throw new Error('No response from API');
+    }
+    
+    log.info('✅ Note update request sent', { noteId });
+    
+    // Update local history with new tags
+    savedArticles[articleIndex] = {
+      ...article,
+      tags: allTags
+    };
+    await storageService.setSavedArticles(savedArticles);
+    
+    return response;
+  } catch (error) {
+    log.error('Failed to update note with tags', { 
+      noteId, 
+      tags,
+      error: error.message,
+      stack: error.stack 
+    });
+    throw error;
   }
-  
-  // Format tags as hashtags
-  const newHashtags = tags.map(tag => `#${tag.replace(/\s+/g, '-')}`).join(' ');
-  
-  // We need to update the note text to add the new tags
-  // The current format has "#pocket" as the first line, we'll append new tags there
-  const noteContent = `#pocket ${newHashtags}
-
-${article.title}
-
-${article.author ? `By ${article.author}\n` : ''}${article.publishedTime ? `Published: ${new Date(article.publishedTime).toLocaleDateString()}\n\n` : ''}${article.description ? article.description + '\n\n' : ''}${article.content}
-
----
-URL: ${article.url}
-Domain: ${article.domain || new URL(article.url).hostname}
-Saved: ${new Date(article.savedAt).toLocaleString()}`;
-  
-  // Update the note
-  const updateData = {
-    id: noteId,
-    text: noteContent,
-    updatedAt: new Date().toISOString()
-  };
-  
-  const response = await apiClient.post('/notes', { notes: [updateData] });
-  
-  // Update local history with tags
-  article.tags = [...(article.tags || []), ...tags];
-  await storageService.setSavedArticles(savedArticles);
-  
-  return response;
 }
 
 // Handle text selection saves

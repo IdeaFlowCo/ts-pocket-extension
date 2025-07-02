@@ -284,7 +284,8 @@ body {
   transform: translateX(2px);
 }
 
-.recent-item:hover .delete-btn {
+.recent-item:hover .delete-btn,
+.recent-item:hover .open-note-btn {
   opacity: 1;
 }
 
@@ -350,6 +351,38 @@ body {
   font-size: 11px;
   color: #019AB0;
   margin-top: 2px;
+}
+
+.open-note-btn {
+  position: absolute;
+  top: 4px;
+  right: 28px; /* Positioned to the left of delete button */
+  width: 20px;
+  height: 20px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 0;
+  transition: all 0.2s;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #019AB0;
+  padding: 0;
+  line-height: 1;
+}
+
+.open-note-btn:hover {
+  background: #019AB0;
+  color: #fff;
+  border-color: #019AB0;
+  transform: scale(1.1);
+}
+
+.open-note-btn svg {
+  width: 14px;
+  height: 14px;
 }
 
 .delete-btn {
