@@ -362,16 +362,12 @@ async function handleSave(tab, tags = []) {
     log.info('Save completed', { noteId: result.noteId });
     
     // Store in local history
-    const savedArticles = await storageService.getSavedArticles();
-    savedArticles.unshift({
+    await storageService.addSavedArticle({
       ...articleData,
       noteId: result.noteId,
       tags: tags,
       savedAt: new Date().toISOString(),
     });
-    
-    // Storage service handles limiting articles
-    await storageService.setSavedArticles(savedArticles);
     
     // Show success badge
     await chromeApi.updateBadge(tab.id, '✓', '#4CAF50');
@@ -502,8 +498,6 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
     log.info('Selection save completed', { noteId: result.noteId });
     
     // Store in local history with compact format
-    const savedArticles = await storageService.getSavedArticles();
-    
     // Extract domain for compact display
     let domain = '';
     try {
@@ -513,7 +507,7 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
       domain = 'unknown';
     }
     
-    savedArticles.unshift({
+    await storageService.addSavedArticle({
       title: domain,  // Just show domain as title
       url: selectionData.url,
       domain: domain,  // Store domain separately for search
@@ -528,13 +522,6 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
       isHighlight: true,
       originalPageTitle: selectionData.title  // Store original title for reference
     });
-    
-    // Keep only last 100 items
-    if (savedArticles.length > 100) {
-      savedArticles.pop();
-    }
-    
-    await storageService.setSavedArticles(savedArticles);
     
     // Show success
     await chromeApi.updateBadge(tab.id, '✓', '#4CAF50', 3000);
@@ -586,8 +573,6 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
     log.info('Selection with links saved', { noteId: result.noteId });
     
     // Store in local history with enriched format
-    const savedArticles = await storageService.getSavedArticles();
-    
     // Extract domain for compact display
     let domain = '';
     try {
@@ -616,7 +601,7 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       }
     }
     
-    savedArticles.unshift({
+    await storageService.addSavedArticle({
       title: displayTitle,
       url: enrichedData.url,
       domain: domain,
@@ -635,13 +620,6 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       platform: enrichedData.platform,
       tweetInfo: enrichedData.tweetInfo
     });
-    
-    // Keep only last 100 items
-    if (savedArticles.length > 100) {
-      savedArticles.pop();
-    }
-    
-    await storageService.setSavedArticles(savedArticles);
     
     // Show success
     await chromeApi.updateBadge(tab.id, '✓', '#4CAF50', 3000);
