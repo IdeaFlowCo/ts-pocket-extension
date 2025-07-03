@@ -843,20 +843,10 @@ async function saveSelectionToThoughtstream(selectionData) {
     // Create tokens array
     const tokens = [];
     
-    // First paragraph: Title (if available)
-    if (selectionData.title && selectionData.title.trim() && selectionData.title !== 'Untitled') {
-      tokens.push({
-        type: 'paragraph',
-        tokenId: generateShortId(),
-        content: [{ type: 'text', marks: [], content: selectionData.title.trim() }],
-        depth: 0
-      });
-    }
-    
-    // Second paragraph: URL as link
+    // First paragraph: URL as link
     tokens.push(createLinkTokens(selectionData.url));
     
-    // Third paragraph: Empty line 
+    // Second paragraph: Empty line 
     tokens.push({
       type: 'paragraph',
       tokenId: generateShortId(),
@@ -864,7 +854,7 @@ async function saveSelectionToThoughtstream(selectionData) {
       depth: 0
     });
     
-    // Fourth paragraph: Selected text
+    // Third paragraph: Selected text
     tokens.push({
       type: 'paragraph',
       tokenId: generateShortId(),
