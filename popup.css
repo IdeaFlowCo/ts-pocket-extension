@@ -675,3 +675,57 @@ body {
   justify-content: center;
   gap: 12px;
 }
+
+/* Autocomplete Dropdown */
+.autocomplete-container {
+  position: relative;
+  width: 100%;
+}
+
+.autocomplete-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  background: #fff;
+  border: 1px solid #ddd;
+  border-top: none;
+  border-radius: 0 0 6px 6px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.1);
+  max-height: 200px;
+  overflow-y: auto;
+  z-index: 1000;
+}
+
+.autocomplete-dropdown.hidden {
+  display: none;
+}
+
+.autocomplete-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  font-size: 14px;
+  color: #333;
+  border-bottom: 1px solid #f0f0f0;
+  transition: background-color 0.15s;
+}
+
+.autocomplete-item:last-child {
+  border-bottom: none;
+}
+
+.autocomplete-item:hover,
+.autocomplete-item.highlighted {
+  background-color: #f8f9fa;
+  color: #019AB0;
+}
+
+.autocomplete-item.highlighted {
+  background-color: #e3f2fd;
+}
+
+/* Make sure the input has the correct z-index when dropdown is open */
+.autocomplete-container .tags-input:focus {
+  border-radius: 6px 6px 0 0;
+  border-bottom-color: #ddd;
+}

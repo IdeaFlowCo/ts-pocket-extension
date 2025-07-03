@@ -1126,7 +1126,47 @@ async function handleMessage(request, sender, sendResponse) {
     sendResponse({ success: true });
     return true;
   }
+  
+  if (request.action === 'getAllHashtags') {
+    (async () => {
+      try {
+        log.info('Fetching all hashtags from saved articles');
+        
+        // Get all saved articles from storage
+        const savedArticles = await storageService.getSavedArticles();
+        
+        // Extract unique hashtags from all articles
+        const hashtagSet = new Set();
+        
+        savedArticles.forEach(article => {
+          if (article.tags && Array.isArray(article.tags)) {
+            article.tags.forEach(tag => {
+              // Normalize hashtag (ensure it starts with #)
+              const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
+              hashtagSet.add(normalizedTag);
+            });
+          }
+        });
+        
+        // Convert to array and sort alphabetically
+        const hashtags = Array.from(hashtagSet).sort();
+        
+        log.info('Extracted hashtags', { 
+          articleCount: savedArticles.length, 
+          hashtagCount: hashtags.length,
+          topHashtags: hashtags.slice(0, 5)
+        });
+        
+        sendResponse({ success: true, hashtags });
+      } catch (error) {
+        log.error('Failed to fetch hashtags', { error: error.message });
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  }
 }
+
 
 // Context menu
 
