@@ -29,3 +29,8 @@ node_modules/
 # Temporary files
 *.tmp
 *.temp
+
+# Development workflow files
+scratchpad.md
+*_scratchpad.md
+*_discovery.diff
