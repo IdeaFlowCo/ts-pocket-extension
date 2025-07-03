@@ -296,7 +296,15 @@ async function saveToThoughtstream(articleData, tags = []) {
       });
     }
 
-    // Second token: Tags
+    // Second token: URL
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [{ type: 'text', marks: [], content: articleData.url }],
+      depth: 0
+    });
+
+    // Third token: Tags (moved to last line)
     const initialTags = ['pocket', ...tags];
     const tagsContent = initialTags.flatMap(tag => ([
         { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
@@ -308,14 +316,6 @@ async function saveToThoughtstream(articleData, tags = []) {
         tokenId: generateShortId(),
         content: tagsContent,
         depth: 0,
-    });
-
-    // Third token: URL
-    tokens.push({
-      type: 'paragraph',
-      tokenId: generateShortId(),
-      content: [{ type: 'text', marks: [], content: articleData.url }],
-      depth: 0
     });
 
     const finalTokens = calculateTokenPositions(tokens);
