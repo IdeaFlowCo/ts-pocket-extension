@@ -327,6 +327,12 @@ body {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  cursor: pointer;
+  transition: text-decoration 0.2s ease;
+}
+
+.recent-item-url:hover {
+  text-decoration: underline;
 }
 
 .recent-item-description {
