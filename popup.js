@@ -21,6 +21,9 @@ const authStatus = document.getElementById('authStatus');
 const postSaveOptions = document.getElementById('postSaveOptions');
 const addTagsBtn = document.getElementById('addTagsBtn');
 const searchInput = document.getElementById('searchInput');
+const clearSearchBtn = document.getElementById('clearSearchBtn');
+const clearPreSaveTagsBtn = document.getElementById('clearPreSaveTagsBtn');
+const clearTagsBtn = document.getElementById('clearTagsBtn');
 const importBtn = document.getElementById('importBtn');
 const importFile = document.getElementById('importFile');
 const importProgress = document.getElementById('importProgress');
@@ -231,20 +234,21 @@ function displayRecentSaves(articles) {
     
     const articleId = article.noteId || article.id || article.url;
     
-    // Add highlight indicator if this is a text selection
-    const highlightIndicator = article.isHighlight ? '<span class="highlight-indicator" title="Text selection">📌</span>' : '';
+    // Add type indicator
+    const typeIndicator = article.isHighlight 
+      ? '<span class="highlight-indicator" title="Text selection">📌</span>' 
+      : '<span class="article-indicator" title="Article">📄</span>';
     
-    // Add link indicator if highlight contains links
-    const linkIndicator = article.hasLinks ? '<span class="link-indicator" title="Contains links">🔗</span>' : '';
-    
-    // Show description for highlights instead of URL
+    // Show selected text for highlights, domain for articles
     const displayContent = article.isHighlight && article.description
       ? `<div class="recent-item-description">${escapeHtml(article.description)}</div>`
       : `<div class="recent-item-url">${escapeHtml(domain)}</div>`;
     
     return `
       <div class="recent-item ${article.isHighlight ? 'is-highlight' : ''} ${article.hasLinks ? 'has-links' : ''}" data-url="${escapeHtml(article.url)}" data-note-id="${escapeHtml(articleId)}">
-        <div class="recent-item-title">${highlightIndicator}${linkIndicator}${escapeHtml(article.title)}</div>
+        <div class="recent-item-title">${typeIndicator}${escapeHtml(article.isHighlight 
+          ? (article.title && article.title.trim() && article.title !== 'Untitled' ? article.title : domain)
+          : article.title)}</div>
         ${displayContent}
         ${tags}
         <div class="recent-item-time">${escapeHtml(timeAgo)}</div>
@@ -336,7 +340,15 @@ function setupEventListeners() {
   
   // Autocomplete for pre-save tags input
   preSaveTagsInput.addEventListener('input', (e) => {
-    showAutocomplete(preSaveTagsInput, preSaveTagsDropdown, e.target.value);
+    const value = e.target.value;
+    showAutocomplete(preSaveTagsInput, preSaveTagsDropdown, value);
+    
+    // Show/hide clear button
+    if (value.trim()) {
+      clearPreSaveTagsBtn.classList.remove('hidden');
+    } else {
+      clearPreSaveTagsBtn.classList.add('hidden');
+    }
   });
   
   preSaveTagsInput.addEventListener('keydown', (e) => {
@@ -416,7 +428,15 @@ function setupEventListeners() {
   
   // Autocomplete for post-save tags input
   tagsInput.addEventListener('input', (e) => {
-    showAutocomplete(tagsInput, tagsDropdown, e.target.value);
+    const value = e.target.value;
+    showAutocomplete(tagsInput, tagsDropdown, value);
+    
+    // Show/hide clear button
+    if (value.trim()) {
+      clearTagsBtn.classList.remove('hidden');
+    } else {
+      clearTagsBtn.classList.add('hidden');
+    }
   });
   
   tagsInput.addEventListener('keydown', (e) => {
@@ -443,10 +463,39 @@ function setupEventListeners() {
     clearTimeout(searchTimeout);
     const query = e.target.value;
     
+    // Show/hide clear button based on input
+    if (query.trim()) {
+      clearSearchBtn.classList.remove('hidden');
+    } else {
+      clearSearchBtn.classList.add('hidden');
+    }
+    
     searchTimeout = setTimeout(() => {
       const filtered = searchArticles(query);
       displayRecentSaves(filtered);
     }, 150); // 150ms debounce
+  });
+  
+  // Clear search button
+  clearSearchBtn.addEventListener('click', () => {
+    searchInput.value = '';
+    clearSearchBtn.classList.add('hidden');
+    displayRecentSaves(allSavedArticles);
+    searchInput.focus();
+  });
+  
+  // Clear pre-save tags button
+  clearPreSaveTagsBtn.addEventListener('click', () => {
+    preSaveTagsInput.value = '';
+    clearPreSaveTagsBtn.classList.add('hidden');
+    preSaveTagsInput.focus();
+  });
+  
+  // Clear post-save tags button
+  clearTagsBtn.addEventListener('click', () => {
+    tagsInput.value = '';
+    clearTagsBtn.classList.add('hidden');
+    tagsInput.focus();
   });
   
   // Import button

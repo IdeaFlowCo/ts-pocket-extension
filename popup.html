@@ -67,12 +67,15 @@
                 <!-- Pre-Save Tags Input -->
                 <div class="pre-save-tags">
                     <div class="autocomplete-container">
-                        <input
-                            type="text"
-                            id="preSaveTagsInput"
-                            class="tags-input"
-                            placeholder="Tags (optional, space-separated)"
-                        />
+                        <div class="tags-input-container">
+                            <input
+                                type="text"
+                                id="preSaveTagsInput"
+                                class="tags-input"
+                                placeholder="Tags (optional, space-separated)"
+                            />
+                            <button id="clearPreSaveTagsBtn" class="clear-tags-btn hidden" title="Clear tags">×</button>
+                        </div>
                         <div id="preSaveTagsDropdown" class="autocomplete-dropdown hidden"></div>
                     </div>
                 </div>
@@ -108,12 +111,15 @@
                     <!-- Tags Input -->
                     <div class="tags-section">
                         <div class="autocomplete-container">
-                            <input
-                                type="text"
-                                id="tagsInput"
-                                class="tags-input"
-                                placeholder="Add tags (space-separated)"
-                            />
+                            <div class="tags-input-container">
+                                <input
+                                    type="text"
+                                    id="tagsInput"
+                                    class="tags-input"
+                                    placeholder="Add tags (space-separated)"
+                                />
+                                <button id="clearTagsBtn" class="clear-tags-btn hidden" title="Clear tags">×</button>
+                            </div>
                             <div id="tagsDropdown" class="autocomplete-dropdown hidden"></div>
                         </div>
                         <button id="addTagsBtn" class="secondary-btn small-btn">
@@ -126,12 +132,15 @@
                 <div class="recent-section">
                     <div class="recent-header">
                         <h3>Recently Saved</h3>
-                        <input
-                            type="text"
-                            id="searchInput"
-                            class="search-input"
-                            placeholder="Search saved articles..."
-                        />
+                        <div class="search-container">
+                            <input
+                                type="text"
+                                id="searchInput"
+                                class="search-input"
+                                placeholder="Search saved articles..."
+                            />
+                            <button id="clearSearchBtn" class="clear-search-btn hidden" title="Clear search">×</button>
+                        </div>
                     </div>
                     <div id="recentList" class="recent-list">
                         <div class="loading">Loading...</div>
