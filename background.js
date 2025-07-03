@@ -1066,7 +1066,95 @@ async function handleMessage(request, sender, sendResponse) {
     sendResponse({ success: true });
     return true;
   }
+  
+  if (request.action === 'getAllHashtags') {
+    (async () => {
+      try {
+        log.info('Fetching all hashtags from saved articles');
+        
+        // Get all saved articles from storage
+        const savedArticles = await storageService.getSavedArticles();
+        
+        // Extract unique hashtags from all articles
+        const hashtagSet = new Set();
+        
+        savedArticles.forEach(article => {
+          if (article.tags && Array.isArray(article.tags)) {
+            article.tags.forEach(tag => {
+              // Normalize hashtag (ensure it starts with #)
+              const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
+              hashtagSet.add(normalizedTag);
+            });
+          }
+        });
+        
+        // Convert to array and sort alphabetically
+        const hashtags = Array.from(hashtagSet).sort();
+        
+        log.info('Extracted hashtags', { 
+          articleCount: savedArticles.length, 
+          hashtagCount: hashtags.length,
+          topHashtags: hashtags.slice(0, 5)
+        });
+        
+        sendResponse({ success: true, hashtags });
+      } catch (error) {
+        log.error('Failed to fetch hashtags', { error: error.message });
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  }
 }
+
+// DEBUG: Make getAllHashtags testable from browser DevTools
+// This function can be called from the browser console in the service worker
+self.testGetAllHashtags = async function() {
+  try {
+    console.log('🔍 Testing getAllHashtags function...');
+    
+    // Get all saved articles from storage
+    const savedArticles = await storageService.getSavedArticles();
+    console.log(`📚 Found ${savedArticles.length} saved articles`);
+    
+    // Extract unique hashtags from all articles
+    const hashtagSet = new Set();
+    
+    savedArticles.forEach(article => {
+      if (article.tags && Array.isArray(article.tags)) {
+        article.tags.forEach(tag => {
+          // Normalize hashtag (ensure it starts with #)
+          const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
+          hashtagSet.add(normalizedTag);
+        });
+      }
+    });
+    
+    // Convert to array and sort alphabetically
+    const hashtags = Array.from(hashtagSet).sort();
+    
+    console.log(`🏷️  Extracted ${hashtags.length} unique hashtags:`);
+    console.log(hashtags);
+    
+    // Show sample of articles with tags for debugging
+    const articlesWithTags = savedArticles.filter(article => article.tags && article.tags.length > 0);
+    console.log(`\n📝 Sample articles with tags (${articlesWithTags.length} total):`);
+    articlesWithTags.slice(0, 3).forEach((article, index) => {
+      console.log(`${index + 1}. "${article.title}" - Tags: ${JSON.stringify(article.tags)}`);
+    });
+    
+    return {
+      success: true,
+      articleCount: savedArticles.length,
+      hashtagCount: hashtags.length,
+      hashtags: hashtags,
+      articlesWithTags: articlesWithTags.length
+    };
+  } catch (error) {
+    console.error('❌ Error testing getAllHashtags:', error);
+    return { success: false, error: error.message };
+  }
+};
 
 // Context menu
 

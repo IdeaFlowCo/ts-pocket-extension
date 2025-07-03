@@ -115,3 +115,75 @@ Custom error hierarchy with specific error types:
 2. Go offline or block API domain
 3. Try saving another article
 4. Go online - should auto-retry
+
+## Using Gemini CLI for Large Codebase Analysis
+
+When working with large codebases or files exceeding context limits, use `gemini -p` with the `@` syntax to include files/directories:
+
+### Quick Reference:
+```bash
+# Single file
+gemini -p "@src/main.py Explain this file's purpose"
+
+# Multiple files
+gemini -p "@package.json @src/index.js Analyze dependencies"
+
+# Entire directory
+gemini -p "@src/ Summarize the architecture"
+
+# Current directory
+gemini -p "@./ Overview of entire project"
+# Or: gemini --all_files -p "Analyze project structure"
+```
+
+### Common Use Cases:
+```bash
+# Check feature implementation
+gemini -p "@src/ @lib/ Is dark mode implemented? Show relevant files"
+
+# Verify authentication
+gemini -p "@src/ @middleware/ Is JWT auth implemented? List endpoints"
+
+# Find patterns
+gemini -p "@src/ Any React hooks for WebSocket? List with paths"
+
+# Security checks
+gemini -p "@backend/ @api/ SQL injection protections? Show sanitization"
+
+# Test coverage
+gemini -p "@src/payment/ @tests/ Is payment module tested? List test cases"
+```
+
+### When to Use:
+- Analyzing entire codebases or large directories
+- Files totaling >100KB
+- Comparing multiple large files
+- Verifying feature implementations across codebase
+- Finding coding patterns project-wide
+
+**Note:** Paths after `@` are relative to where you run `gemini`
+
+---
+
+## Search Tool Preference
+
+**ALWAYS use ripgrep (`rg`) instead of `grep`** when searching through code:
+
+```bash
+# Instead of: grep -r "pattern" .
+# Use: rg "pattern"
+
+# Instead of: grep -i "case-insensitive" file.txt
+# Use: rg -i "case-insensitive" file.txt
+
+# Instead of: find . -name "*.js" | xargs grep "pattern"
+# Use: rg "pattern" -t js
+```
+
+**Why ripgrep is preferred:**
+- Much faster than grep, especially on large codebases
+- Automatically respects .gitignore files
+- Better default behavior for code searching
+- Built-in file type filtering with -t flag
+- Smart case sensitivity by default
+- Better Unicode support
