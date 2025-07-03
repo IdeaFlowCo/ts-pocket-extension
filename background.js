@@ -123,6 +123,52 @@ function generateShortId() {
   return Math.random().toString(36).substring(2, 12);
 }
 
+// Extract page title with fallback to tab.title
+async function extractPageTitle(tab) {
+  try {
+    // Try to get smart title from content script with timeout
+    const response = await Promise.race([
+      chromeApi.tabs.sendMessage(tab.id, { action: 'extractTitle' }),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Title extraction timeout')), 2000))
+    ]);
+    
+    if (response && response.success && response.title) {
+      log.info('Smart title extracted', { title: response.title });
+      return response.title;
+    } else {
+      log.warn('Smart title extraction failed, using tab.title', { response });
+      return tab.title || 'Untitled';
+    }
+  } catch (error) {
+    // If content script isn't loaded or fails, try to inject and retry once
+    if (error.message?.includes('Could not establish connection')) {
+      try {
+        await chromeApi.scripting.executeScript({
+          target: { tabId: tab.id },
+          files: ['content.js']
+        });
+        
+        // Retry title extraction after injection
+        const response = await Promise.race([
+          chromeApi.tabs.sendMessage(tab.id, { action: 'extractTitle' }),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Title extraction timeout after injection')), 2000))
+        ]);
+        
+        if (response && response.success && response.title) {
+          log.info('Smart title extracted after injection', { title: response.title });
+          return response.title;
+        }
+      } catch (injectError) {
+        log.warn('Failed to inject content script for title extraction', { error: injectError.message });
+      }
+    }
+    
+    // Fallback to tab.title
+    log.info('Using tab.title fallback', { title: tab.title, error: error.message });
+    return tab.title || 'Untitled';
+  }
+}
+
 
 
 
@@ -237,34 +283,42 @@ async function saveToThoughtstream(articleData, tags = []) {
       throw new Error('User ID not found. Please login again.');
     }
 
-    // Simplified content - just URL for now
-    const contentParts = [
-      articleData.url
-    ];
+    // Build tokens array
+    const tokens = [];
 
-    // Create simple tokens
-    const contentTokens = [{
-      type: 'paragraph',
-      tokenId: generateShortId(),
-      content: [{ type: 'text', marks: [], content: articleData.url }],
-      depth: 0
-    }];
+    // First token: Title (if available and not empty)
+    if (articleData.title && articleData.title.trim() && articleData.title !== 'Untitled') {
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [{ type: 'text', marks: [], content: articleData.title.trim() }],
+        depth: 0
+      });
+    }
 
+    // Second token: Tags
     const initialTags = ['pocket', ...tags];
-    const firstParagraphContent = initialTags.flatMap(tag => ([
+    const tagsContent = initialTags.flatMap(tag => ([
         { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
         { type: 'text', content: ' ', marks: [] }
     ]));
 
-    const firstParagraphToken = {
+    tokens.push({
         type: 'paragraph',
         tokenId: generateShortId(),
-        content: firstParagraphContent,
+        content: tagsContent,
         depth: 0,
-    };
+    });
 
-    const tokensWithoutPositions = [firstParagraphToken, ...contentTokens];
-    const finalTokens = calculateTokenPositions(tokensWithoutPositions);
+    // Third token: URL
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [{ type: 'text', marks: [], content: articleData.url }],
+      depth: 0
+    });
+
+    const finalTokens = calculateTokenPositions(tokens);
 
     // Payload for /notes/top endpoint - no position needed
     const noteData = {
@@ -397,9 +451,12 @@ async function handleSave(tab, tags = []) {
     }
     */
     
-    // Simplified version - just save URL and title
+    // Extract page title with smart fallbacks
+    const pageTitle = await extractPageTitle(tab);
+    
+    // Create article data with extracted title
     const articleData = {
-      title: tab.title || 'Untitled',
+      title: pageTitle,
       url: tab.url,
       description: '',
       content: '', // No content extraction for now

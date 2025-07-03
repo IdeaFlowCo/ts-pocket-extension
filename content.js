@@ -386,6 +386,18 @@ function extractImages(element) {
   return images;
 }
 
+// Fast title extraction using existing metadata logic
+function extractTitle() {
+  try {
+    // Use existing metadata extraction logic but return only title
+    const metadata = extractMetadata();
+    return metadata.title;
+  } catch (error) {
+    logger.warn('Title extraction failed, using document.title', { error: error.message });
+    return document.title;
+  }
+}
+
 // Listen for extraction requests from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   logger.info('Received message', { action: request.action });
@@ -408,6 +420,19 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         sendResponse({ success: false, error: error.message });
       }
     })();
+    return true; // Keep message channel open for async response
+  }
+  
+  if (request.action === 'extractTitle') {
+    try {
+      logger.info('Starting title extraction...');
+      const title = extractTitle();
+      logger.info('Title extraction successful', { title });
+      sendResponse({ success: true, title });
+    } catch (error) {
+      logger.error('Title extraction failed', { error: error.message });
+      sendResponse({ success: false, error: error.message });
+    }
     return true; // Keep message channel open for async response
   }
 });
