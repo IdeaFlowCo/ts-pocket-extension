@@ -259,6 +259,68 @@ body {
   display: none;
 }
 
+/* Tag Pills */
+.tag-pills-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-height: 0;
+}
+
+.tag-pills-container:empty {
+  margin-bottom: 0;
+}
+
+.tag-pill {
+  display: inline-flex;
+  align-items: center;
+  background-color: #e3f2fd;
+  color: #0277bd;
+  border: 1px solid #bbdefb;
+  border-radius: 16px;
+  padding: 4px 8px 4px 12px;
+  font-size: 12px;
+  font-weight: 500;
+  gap: 6px;
+  transition: all 0.2s ease;
+  max-width: 150px;
+}
+
+.tag-pill:hover {
+  background-color: #bbdefb;
+  border-color: #90caf9;
+}
+
+.tag-pill-text {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  flex: 1;
+}
+
+.tag-pill-remove {
+  background: none;
+  border: none;
+  color: #0277bd;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: bold;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+  flex-shrink: 0;
+}
+
+.tag-pill-remove:hover {
+  background-color: #0277bd;
+  color: white;
+}
+
 .small-btn {
   padding: 8px 12px;
   font-size: 13px;

@@ -24,6 +24,8 @@ const searchInput = document.getElementById('searchInput');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
 const clearPreSaveTagsBtn = document.getElementById('clearPreSaveTagsBtn');
 const clearTagsBtn = document.getElementById('clearTagsBtn');
+const preSaveTagsPills = document.getElementById('preSaveTagsPills');
+const tagsPills = document.getElementById('tagsPills');
 const importBtn = document.getElementById('importBtn');
 const importFile = document.getElementById('importFile');
 const importProgress = document.getElementById('importProgress');
@@ -39,6 +41,8 @@ const tagsDropdown = document.getElementById('tagsDropdown');
 
 // State
 let currentTags = [];
+let preSaveTags = []; // Array of tags for pre-save section
+let postSaveTags = []; // Array of tags for post-save section
 let isAuthenticated = false;
 let lastSavedNoteId = null;
 let allSavedArticles = [];
@@ -334,17 +338,49 @@ function setupEventListeners() {
   preSaveTagsInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      handleQuickSave();
+      const inputText = preSaveTagsInput.value.trim();
+      if (inputText) {
+        // Add any remaining text as a tag
+        const normalizedTag = inputText.startsWith('#') ? inputText : `#${inputText}`;
+        if (!preSaveTags.includes(normalizedTag)) {
+          preSaveTags.push(normalizedTag);
+          renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
+        }
+        preSaveTagsInput.value = '';
+        if (preSaveTags.length === 0) {
+          clearPreSaveTagsBtn.classList.add('hidden');
+        }
+      }
     }
   });
   
   // Autocomplete for pre-save tags input
   preSaveTagsInput.addEventListener('input', (e) => {
     const value = e.target.value;
-    showAutocomplete(preSaveTagsInput, preSaveTagsDropdown, value);
+    
+    // Check for separators and create pills immediately
+    if (value.includes(' ') || value.includes(',') || value.includes(';')) {
+      const parts = value.split(/[\s,;]+/);
+      const completedTags = parts.slice(0, -1).filter(tag => tag.trim().length > 0);
+      const remainingText = parts[parts.length - 1] || '';
+      
+      // Add completed tags as pills
+      completedTags.forEach(tag => {
+        const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
+        if (!preSaveTags.includes(normalizedTag)) {
+          preSaveTags.push(normalizedTag);
+        }
+      });
+      
+      // Update pills display and clear input to remaining text
+      renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
+      preSaveTagsInput.value = remainingText;
+    }
+    
+    showAutocomplete(preSaveTagsInput, preSaveTagsDropdown, preSaveTagsInput.value);
     
     // Show/hide clear button
-    if (value.trim()) {
+    if (preSaveTagsInput.value.trim() || preSaveTags.length > 0) {
       clearPreSaveTagsBtn.classList.remove('hidden');
     } else {
       clearPreSaveTagsBtn.classList.add('hidden');
@@ -361,7 +397,9 @@ function setupEventListeners() {
   preSaveTagsDropdown.addEventListener('click', (e) => {
     if (e.target.classList.contains('autocomplete-item')) {
       const selectedHashtag = e.target.dataset.hashtag;
-      replaceCurrentWord(preSaveTagsInput, selectedHashtag);
+      addTag(preSaveTags, preSaveTagsPills, selectedHashtag, removePreSaveTag);
+      preSaveTagsInput.value = '';
+      clearPreSaveTagsBtn.classList.add('hidden');
       hideAutocomplete(preSaveTagsDropdown);
       preSaveTagsInput.focus();
     }
@@ -383,10 +421,21 @@ function setupEventListeners() {
   
   // Add tags button
   addTagsBtn.addEventListener('click', async () => {
-    const tagsText = tagsInput.value.trim();
-    if (!tagsText || !lastSavedNoteId) return;
+    // First, handle any unpilled text in the input
+    const unpilledText = tagsInput.value.trim();
+    if (unpilledText) {
+      const normalizedTag = unpilledText.startsWith('#') ? unpilledText : `#${unpilledText}`;
+      if (!postSaveTags.includes(normalizedTag)) {
+        postSaveTags.push(normalizedTag);
+        renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+      }
+      tagsInput.value = '';
+    }
     
-    const tags = tagsText.split(/\s+/).filter(t => t.length > 0);
+    if (postSaveTags.length === 0 || !lastSavedNoteId) return;
+    
+    // Convert pills tags to array (remove # prefix for backend)
+    const tags = postSaveTags.map(tag => tag.startsWith('#') ? tag.slice(1) : tag);
     
     // Disable button while updating
     addTagsBtn.disabled = true;
@@ -422,17 +471,49 @@ function setupEventListeners() {
   tagsInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
       e.preventDefault();
-      addTagsBtn.click();
+      const inputText = tagsInput.value.trim();
+      if (inputText) {
+        // Add any remaining text as a tag
+        const normalizedTag = inputText.startsWith('#') ? inputText : `#${inputText}`;
+        if (!postSaveTags.includes(normalizedTag)) {
+          postSaveTags.push(normalizedTag);
+          renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+        }
+        tagsInput.value = '';
+        if (postSaveTags.length === 0) {
+          clearTagsBtn.classList.add('hidden');
+        }
+      }
     }
   });
   
   // Autocomplete for post-save tags input
   tagsInput.addEventListener('input', (e) => {
     const value = e.target.value;
-    showAutocomplete(tagsInput, tagsDropdown, value);
+    
+    // Check for separators and create pills immediately
+    if (value.includes(' ') || value.includes(',') || value.includes(';')) {
+      const parts = value.split(/[\s,;]+/);
+      const completedTags = parts.slice(0, -1).filter(tag => tag.trim().length > 0);
+      const remainingText = parts[parts.length - 1] || '';
+      
+      // Add completed tags as pills
+      completedTags.forEach(tag => {
+        const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
+        if (!postSaveTags.includes(normalizedTag)) {
+          postSaveTags.push(normalizedTag);
+        }
+      });
+      
+      // Update pills display and clear input to remaining text
+      renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+      tagsInput.value = remainingText;
+    }
+    
+    showAutocomplete(tagsInput, tagsDropdown, tagsInput.value);
     
     // Show/hide clear button
-    if (value.trim()) {
+    if (tagsInput.value.trim() || postSaveTags.length > 0) {
       clearTagsBtn.classList.remove('hidden');
     } else {
       clearTagsBtn.classList.add('hidden');
@@ -449,7 +530,9 @@ function setupEventListeners() {
   tagsDropdown.addEventListener('click', (e) => {
     if (e.target.classList.contains('autocomplete-item')) {
       const selectedHashtag = e.target.dataset.hashtag;
-      replaceCurrentWord(tagsInput, selectedHashtag);
+      addTag(postSaveTags, tagsPills, selectedHashtag, removePostSaveTag);
+      tagsInput.value = '';
+      clearTagsBtn.classList.add('hidden');
       hideAutocomplete(tagsDropdown);
       tagsInput.focus();
     }
@@ -488,6 +571,8 @@ function setupEventListeners() {
   clearPreSaveTagsBtn.addEventListener('click', () => {
     preSaveTagsInput.value = '';
     clearPreSaveTagsBtn.classList.add('hidden');
+    preSaveTags.length = 0;
+    renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
     preSaveTagsInput.focus();
   });
   
@@ -495,6 +580,8 @@ function setupEventListeners() {
   clearTagsBtn.addEventListener('click', () => {
     tagsInput.value = '';
     clearTagsBtn.classList.add('hidden');
+    postSaveTags.length = 0;
+    renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
     tagsInput.focus();
   });
   
@@ -627,9 +714,19 @@ async function handleQuickSave() {
   quickSaveBtn.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Saving...</span>';
   
   try {
-    // Get tags from pre-save input
-    const preSaveTags = preSaveTagsInput.value.trim();
-    const tagsArray = preSaveTags ? preSaveTags.split(/\s+/).filter(tag => tag.length > 0) : [];
+    // First, handle any unpilled text in the input
+    const unpilledText = preSaveTagsInput.value.trim();
+    if (unpilledText) {
+      const normalizedTag = unpilledText.startsWith('#') ? unpilledText : `#${unpilledText}`;
+      if (!preSaveTags.includes(normalizedTag)) {
+        preSaveTags.push(normalizedTag);
+        renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
+      }
+      preSaveTagsInput.value = '';
+    }
+    
+    // Get tags from pills (remove # prefix for backend)
+    const tagsArray = preSaveTags.map(tag => tag.startsWith('#') ? tag.slice(1) : tag);
     
     // Send save message to background with pre-save tags
     const response = await chromeApi.runtime.sendMessage({ 
@@ -650,8 +747,15 @@ async function handleQuickSave() {
     if (response && response.success) {
       lastSavedNoteId = response.noteId;
       
-      // Clear pre-save tags input
+      // Clear pre-save tags input and pills
       preSaveTagsInput.value = '';
+      preSaveTags.length = 0; // Clear the array
+      renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
+      
+      // Clear post-save tags input and pills for fresh start
+      tagsInput.value = '';
+      postSaveTags.length = 0; // Clear the array
+      renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
       
       // Hide save button, show post-save options
       quickSaveBtn.classList.add('hidden');
@@ -755,6 +859,12 @@ function showView(view) {
     preSaveTagsInput.value = '';
     tagsInput.value = '';
     
+    // Clear tag pills
+    preSaveTags.length = 0;
+    postSaveTags.length = 0;
+    renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
+    renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+    
     // Refresh recent saves when returning to main view
     loadRecentSaves();
   }
@@ -792,6 +902,68 @@ function escapeHtml(text) {
   const div = document.createElement('div');
   div.textContent = text;
   return div.innerHTML;
+}
+
+// Tag Pills Management
+function createTagPill(tag, onRemove) {
+  const pill = document.createElement('div');
+  pill.className = 'tag-pill';
+  pill.innerHTML = `
+    <span class="tag-pill-text">${escapeHtml(tag)}</span>
+    <button class="tag-pill-remove" title="Remove tag">×</button>
+  `;
+  
+  const removeBtn = pill.querySelector('.tag-pill-remove');
+  removeBtn.addEventListener('click', () => onRemove(tag));
+  
+  return pill;
+}
+
+function renderTagPills(container, tags, onRemove) {
+  container.innerHTML = '';
+  tags.forEach(tag => {
+    const pill = createTagPill(tag, onRemove);
+    container.appendChild(pill);
+  });
+}
+
+function addTag(tagsArray, container, tag, onRemove) {
+  const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
+  if (!tagsArray.includes(normalizedTag)) {
+    tagsArray.push(normalizedTag);
+    renderTagPills(container, tagsArray, onRemove);
+  }
+}
+
+function addMultipleTags(tagsArray, container, inputText, onRemove) {
+  // Split on space, comma, semicolon and filter empty strings
+  const tags = inputText.split(/[\s,;]+/).filter(tag => tag.trim().length > 0);
+  
+  tags.forEach(tag => {
+    const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
+    if (!tagsArray.includes(normalizedTag)) {
+      tagsArray.push(normalizedTag);
+    }
+  });
+  
+  renderTagPills(container, tagsArray, onRemove);
+}
+
+function removeTag(tagsArray, container, tag, onRemove) {
+  const index = tagsArray.indexOf(tag);
+  if (index > -1) {
+    tagsArray.splice(index, 1);
+    renderTagPills(container, tagsArray, onRemove);
+  }
+}
+
+// Specific remove functions for each section
+function removePreSaveTag(tag) {
+  removeTag(preSaveTags, preSaveTagsPills, tag, removePreSaveTag);
+}
+
+function removePostSaveTag(tag) {
+  removeTag(postSaveTags, tagsPills, tag, removePostSaveTag);
 }
 
 function getTimeAgo(date) {
