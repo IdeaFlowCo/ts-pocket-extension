@@ -235,13 +235,24 @@
                             </div>
                             <input
                                 type="file"
-                                id="importFile"
-                                accept=".html"
+                                id="importZipFile"
+                                accept=".zip"
                                 style="display: none"
                             />
-                            <button id="importBtn" class="secondary-btn">
-                                Choose Export File
+                            <input
+                                type="file"
+                                id="importFolder"
+                                webkitdirectory
+                                style="display: none"
+                            />
+                            <button id="importZipBtn" class="secondary-btn">
+                                Import pocket.zip file
                             </button>
+                            <div class="import-alt">
+                                <a href="#" id="importFolderLink" class="small-link">
+                                    or import unzipped folder
+                                </a>
+                            </div>
                             <div
                                 id="importProgress"
                                 class="import-progress hidden"
@@ -305,6 +316,7 @@
             </div>
         </div>
 
+        <script src="jszip.min.js"></script>
         <script type="module" src="popup.js"></script>
     </body>
 </html>

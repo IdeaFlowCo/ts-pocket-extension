@@ -885,3 +885,21 @@ body {
   border-radius: 6px 6px 0 0;
   border-bottom-color: #019AB0;
 }
+
+/* Import alternative link styling */
+.import-alt {
+  margin-top: 8px;
+  text-align: center;
+}
+
+.small-link {
+  color: #666;
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 400;
+}
+
+.small-link:hover {
+  color: #019AB0;
+  text-decoration: underline;
+}

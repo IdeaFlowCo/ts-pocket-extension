@@ -26,8 +26,10 @@ const clearPreSaveTagsBtn = document.getElementById('clearPreSaveTagsBtn');
 const clearTagsBtn = document.getElementById('clearTagsBtn');
 const preSaveTagsPills = document.getElementById('preSaveTagsPills');
 const tagsPills = document.getElementById('tagsPills');
-const importBtn = document.getElementById('importBtn');
-const importFile = document.getElementById('importFile');
+const importZipBtn = document.getElementById('importZipBtn');
+const importFolderLink = document.getElementById('importFolderLink');
+const importZipFile = document.getElementById('importZipFile');
+const importFolder = document.getElementById('importFolder');
 const importProgress = document.getElementById('importProgress');
 const deleteAllBtn = document.getElementById('deleteAllBtn');
 const confirmModal = document.getElementById('confirmModal');
@@ -94,7 +96,7 @@ async function checkAuthStatus() {
     // Check if this is first use
     const hasSeenSetup = await storageService.get(['hasSeenSetup']);
     if (!isAuthenticated && !hasSeenSetup.hasSeenSetup) {
-      showStatus('Please login to get started', 'error');
+      showStatus('Please login to get started', 'success');
       showView('settings');
       await storageService.set({ hasSeenSetup: true });
     }
@@ -599,9 +601,14 @@ function setupEventListeners() {
     tagsInput.focus();
   });
   
-  // Import button
-  importBtn.addEventListener('click', () => importFile.click());
-  importFile.addEventListener('change', handlePocketImport);
+  // Import buttons
+  importZipBtn.addEventListener('click', () => importZipFile.click());
+  importFolderLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    importFolder.click();
+  });
+  importZipFile.addEventListener('change', handlePocketImport);
+  importFolder.addEventListener('change', handlePocketFolderImport);
   
   // Delete all button
   deleteAllBtn.addEventListener('click', () => {
@@ -718,7 +725,7 @@ function setupEventListeners() {
 // Handle quick save
 async function handleQuickSave() {
   if (!isAuthenticated) {
-    showStatus('Please login first', 'error');
+    showStatus('Please login first', 'success');
     showView('settings');
     return;
   }
@@ -991,71 +998,204 @@ function getTimeAgo(date) {
   return date.toLocaleDateString();
 }
 
-// Parse Pocket export HTML
-function parsePocketExport(htmlContent) {
-  const parser = new DOMParser();
-  const doc = parser.parseFromString(htmlContent, 'text/html');
+// Parse Pocket export CSV
+function parsePocketCSV(csvContent) {
+  const lines = csvContent.split('\n');
+  const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+  
+  // Send headers to background for logging
+  chrome.runtime.sendMessage({
+    action: 'logCsvHeaders',
+    headers: headers
+  });
   
   const articles = [];
-  doc.querySelectorAll('a').forEach(link => {
-    const timeAdded = link.getAttribute('time_added');
-    const tags = link.getAttribute('tags');
+  for (let i = 1; i < lines.length; i++) {
+    const line = lines[i].trim();
+    if (!line) continue;
     
-    articles.push({
-      url: link.href,
-      title: link.textContent || 'Untitled',
-      addedAt: timeAdded ? new Date(parseInt(timeAdded) * 1000) : new Date(),
-      tags: tags ? tags.split(',').filter(t => t.trim()) : []
+    const values = parseCSVLine(line);
+    if (values.length < headers.length) continue;
+    
+    const article = {};
+    headers.forEach((header, index) => {
+      article[header] = values[index] || '';
     });
-  });
+    
+    // Convert to our format with smart title fallbacks
+    let title = article.title && article.title.trim() && article.title !== article.url 
+      ? article.title.trim() 
+      : null;
+    
+    // If no title, extract from URL
+    if (!title) {
+      try {
+        const url = new URL(article.url);
+        const domain = url.hostname.replace(/^www\./, '');
+        const pathname = url.pathname;
+        
+        // Try to extract meaningful part from path
+        if (pathname && pathname !== '/') {
+          const pathParts = pathname.split('/').filter(p => p.length > 0);
+          const lastPart = pathParts[pathParts.length - 1];
+          
+          // Clean up the last part of the path
+          if (lastPart) {
+            title = lastPart
+              .replace(/[-_]/g, ' ')  // Replace dashes/underscores with spaces
+              .replace(/\.(html?|php|aspx?)$/, '')  // Remove file extensions
+              .replace(/^\d+[-_]/, '')  // Remove leading numbers with separators
+              .split(' ')
+              .map(word => word.charAt(0).toUpperCase() + word.slice(1))  // Title case
+              .join(' ')
+              .substring(0, 60);  // Limit length
+          }
+        }
+        
+        // Final fallback to domain name
+        if (!title || title.length < 3) {
+          title = domain;
+        }
+      } catch (e) {
+        title = 'Saved Article';
+      }
+    }
+    
+    const processedArticle = {
+      url: article.url || '',
+      title: title,
+      addedAt: article.time_added ? new Date(parseInt(article.time_added) * 1000) : new Date(),
+      tags: article.tags ? article.tags.split(',').filter(t => t.trim()) : []
+    };
+    
+    articles.push(processedArticle);
+  }
   
   return articles;
 }
 
-// Handle Pocket import
+// Parse CSV line handling quoted values
+function parseCSVLine(line) {
+  const values = [];
+  let current = '';
+  let inQuotes = false;
+  
+  for (let i = 0; i < line.length; i++) {
+    const char = line[i];
+    
+    if (char === '"') {
+      inQuotes = !inQuotes;
+    } else if (char === ',' && !inQuotes) {
+      values.push(current.trim());
+      current = '';
+    } else {
+      current += char;
+    }
+  }
+  
+  values.push(current.trim());
+  return values;
+}
+
+// Extract ZIP file and parse CSV
+async function extractZipAndParse(zipFile) {
+  const zip = await JSZip.loadAsync(zipFile);
+  
+  // Look for part_000000.csv (could be in root or in pocket/ folder)
+  let csvFile = zip.file('part_000000.csv');
+  if (!csvFile) {
+    csvFile = zip.file('pocket/part_000000.csv');
+  }
+  
+  if (!csvFile) {
+    throw new Error('Could not find part_000000.csv in ZIP file');
+  }
+  
+  const csvContent = await csvFile.async('string');
+  return parsePocketCSV(csvContent);
+}
+
+// Handle Pocket import from ZIP file
 async function handlePocketImport(event) {
   const file = event.target.files[0];
   if (!file) return;
   
   if (!isAuthenticated) {
-    showImportStatus('Please login first', 'error');
+    showImportStatus('Please login first', 'success');
     return;
   }
   
   try {
-    const content = await file.text();
-    const articles = parsePocketExport(content);
-    
-    if (articles.length === 0) {
-      showImportStatus('No articles found in export file', 'error');
-      return;
-    }
-    
-    showImportStatus(`Found ${articles.length} articles. Importing...`, '');
-    
-    // Send to background for processing
-    const response = await chromeApi.runtime.sendMessage({
-      action: 'importPocket',
-      articles: articles
-    });
-    
-    if (response.success) {
-      showImportStatus(
-        `Successfully imported ${response.imported} of ${response.total} articles`, 
-        'success'
-      );
-      loadRecentSaves(); // Refresh the list
-    } else {
-      showImportStatus(response.error || 'Import failed', 'error');
-    }
-    
+    const articles = await extractZipAndParse(file);
+    await processImportedArticles(articles);
   } catch (error) {
-    // Import error
-    showImportStatus(error.message || 'Failed to import', 'error');
+    showImportStatus(error.message || 'Failed to import ZIP file', 'error');
   }
   
   // Reset file input
   event.target.value = '';
+}
+
+// Handle Pocket import from folder
+async function handlePocketFolderImport(event) {
+  const files = event.target.files;
+  if (!files || files.length === 0) return;
+  
+  if (!isAuthenticated) {
+    showImportStatus('Please login first', 'success');
+    return;
+  }
+  
+  try {
+    // Find part_000000.csv in the selected files
+    let csvFile = null;
+    for (let i = 0; i < files.length; i++) {
+      if (files[i].name === 'part_000000.csv') {
+        csvFile = files[i];
+        break;
+      }
+    }
+    
+    if (!csvFile) {
+      showImportStatus('Could not find part_000000.csv in the selected folder', 'error');
+      return;
+    }
+    
+    const content = await csvFile.text();
+    const articles = parsePocketCSV(content);
+    await processImportedArticles(articles);
+  } catch (error) {
+    showImportStatus(error.message || 'Failed to import folder', 'error');
+  }
+  
+  // Reset file input
+  event.target.value = '';
+}
+
+// Process imported articles (common logic)
+async function processImportedArticles(articles) {
+  if (articles.length === 0) {
+    showImportStatus('No articles found in export', 'error');
+    return;
+  }
+  
+  showImportStatus(`Found ${articles.length} articles. Importing...`, '');
+  
+  // Send to background for processing
+  const response = await chromeApi.runtime.sendMessage({
+    action: 'importPocket',
+    articles: articles
+  });
+  
+  if (response.success) {
+    showImportStatus(
+      `Successfully imported ${response.imported} of ${response.total} articles`, 
+      'success'
+    );
+    loadRecentSaves(); // Refresh the list
+  } else {
+    showImportStatus(response.error || 'Import failed', 'error');
+  }
 }
 
 // Show import status

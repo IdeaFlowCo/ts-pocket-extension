@@ -1180,6 +1180,12 @@ async function handleMessage(request, sender, sendResponse) {
     return true;
   }
   
+  if (request.action === 'logCsvHeaders') {
+    log.info('CSV Headers found:', request.headers);
+    sendResponse({ success: true });
+    return true;
+  }
+  
   if (request.action === 'importPocket') {
     handlePocketImport(request.articles).then(result => {
       sendResponse(result);
@@ -1353,6 +1359,8 @@ async function handlePocketImport(articles) {
   let failed = 0;
   const total = articles.length;
   
+  log.info('Starting Pocket import', { total, firstArticle: articles[0] });
+  
   // Process articles in batches to avoid overwhelming the API
   const batchSize = 5;
   
@@ -1362,35 +1370,47 @@ async function handlePocketImport(articles) {
     // Process batch in parallel
     const promises = batch.map(async (article) => {
       try {
+        // Validate URL first
+        if (!article.url || !article.url.startsWith('http')) {
+          throw new Error(`Invalid URL: ${article.url}`);
+        }
+        
+        log.debug('Processing article:', { title: article.title, url: article.url, hasTitle: !!article.title });
+        
         // Create a minimal article object for import
         const articleData = {
-          title: article.title,
+          title: article.title || 'Untitled',
           url: article.url,
           description: `Imported from Pocket on ${new Date().toLocaleDateString()}`,
           content: '', // We don't have content from Pocket export
           author: '',
           publishedTime: '',
           images: [],
-          savedAt: article.addedAt.toISOString(),
+          savedAt: (article.addedAt && typeof article.addedAt.toISOString === 'function') ? article.addedAt.toISOString() : new Date().toISOString(),
           domain: new URL(article.url).hostname
         };
         
-        // Add pocket-import tag along with original tags
-        const tags = ['pocket-import', ...article.tags];
+        log.debug('Created articleData, calling saveToThoughtstream');
+        
+        // Add from-pocket tag along with original tags
+        const tags = ['from-pocket', ...(Array.isArray(article.tags) ? article.tags : [])];
         
         // Save to Thoughtstream
-        await saveToThoughtstream(articleData, tags);
+        const result = await saveToThoughtstream(articleData, tags);
+        
+        log.debug('saveToThoughtstream succeeded, adding to local storage');
         
         // Add to local history
         await storageService.addSavedArticle({
           ...articleData,
-          noteId: generateShortId(),
+          noteId: result.noteId,
           tags: tags
         });
         
         imported++;
       } catch (error) {
-        log.error('Failed to import article:', article.url, error);
+        log.error('Failed to import article:', article.url, 'Error:', error.message || error.toString());
+        log.debug('Error name:', error.name, 'Stack:', error.stack);
         failed++;
       }
     });
