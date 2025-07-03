@@ -123,6 +123,28 @@ function generateShortId() {
   return Math.random().toString(36).substring(2, 12);
 }
 
+// Convert URL to proper link tokens (based on Thoughtstream's getAsLinkLoaderTokens)
+function createLinkTokens(url) {
+  return {
+    type: "paragraph",
+    tokenId: generateShortId(),
+    content: [
+      {
+        type: "linkloader",
+        tokenId: generateShortId(),
+        url: url,
+        isActive: true,
+      },
+      {
+        type: "link",
+        content: url,
+        slug: url,
+      },
+    ],
+    depth: 0
+  };
+}
+
 // Extract page title with fallback to tab.title
 async function extractPageTitle(tab) {
   try {
@@ -296,13 +318,8 @@ async function saveToThoughtstream(articleData, tags = []) {
       });
     }
 
-    // Second token: URL
-    tokens.push({
-      type: 'paragraph',
-      tokenId: generateShortId(),
-      content: [{ type: 'text', marks: [], content: articleData.url }],
-      depth: 0
-    });
+    // Second token: URL as link
+    tokens.push(createLinkTokens(articleData.url));
 
     // Third token: Tags (moved to last line)
     const initialTags = ['pocket', ...tags];
@@ -838,28 +855,20 @@ async function saveSelectionToThoughtstream(selectionData) {
     // Create tokens array
     const tokens = [];
     
-    // First paragraph: #highlight tag
-    tokens.push({
-      type: 'paragraph',
-      tokenId: generateShortId(),
-      content: [
-        { type: 'hashtag', content: '#highlight' },
-        { type: 'text', content: ' ', marks: [] }
-      ],
-      depth: 0
-    });
+    // First paragraph: Title (if available)
+    if (selectionData.title && selectionData.title.trim() && selectionData.title !== 'Untitled') {
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [{ type: 'text', marks: [], content: selectionData.title.trim() }],
+        depth: 0
+      });
+    }
     
-    // Second paragraph: URL only (more compact)
-    tokens.push({
-      type: 'paragraph',
-      tokenId: generateShortId(),
-      content: [
-        { type: 'text', content: selectionData.url, marks: [] }
-      ],
-      depth: 0
-    });
+    // Second paragraph: URL as link
+    tokens.push(createLinkTokens(selectionData.url));
     
-    // Third paragraph: Empty line (linebreak before note as requested)
+    // Third paragraph: Empty line 
     tokens.push({
       type: 'paragraph',
       tokenId: generateShortId(),
@@ -873,6 +882,25 @@ async function saveSelectionToThoughtstream(selectionData) {
       tokenId: generateShortId(),
       content: [
         { type: 'text', content: selectionData.selectedText, marks: [] }
+      ],
+      depth: 0
+    });
+    
+    // Fifth paragraph: Empty line before tags
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [{ type: 'text', content: '', marks: [] }],
+      depth: 0
+    });
+    
+    // Sixth paragraph: #highlight tag
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [
+        { type: 'hashtag', content: '#highlight' },
+        { type: 'text', content: ' ', marks: [] }
       ],
       depth: 0
     });
