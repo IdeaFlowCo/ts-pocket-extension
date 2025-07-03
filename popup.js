@@ -30,6 +30,10 @@ const confirmMessage = document.getElementById('confirmMessage');
 const confirmOkBtn = document.getElementById('confirmOkBtn');
 const confirmCancelBtn = document.getElementById('confirmCancelBtn');
 
+// Autocomplete elements
+const preSaveTagsDropdown = document.getElementById('preSaveTagsDropdown');
+const tagsDropdown = document.getElementById('tagsDropdown');
+
 // State
 let currentTags = [];
 let isAuthenticated = false;
@@ -37,6 +41,10 @@ let lastSavedNoteId = null;
 let allSavedArticles = [];
 let pendingAction = null;
 let fuse = null; // Fuse.js instance
+
+// Autocomplete state
+let availableHashtags = [];
+let currentFocus = -1; // Track which autocomplete item is highlighted
 
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
@@ -47,6 +55,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Load recent saves
   loadRecentSaves();
+  
+  // Load available hashtags for autocomplete
+  await loadAvailableHashtags();
   
   // Set up event listeners
   setupEventListeners();
@@ -316,6 +327,27 @@ function setupEventListeners() {
     }
   });
   
+  // Autocomplete for pre-save tags input
+  preSaveTagsInput.addEventListener('input', (e) => {
+    showAutocomplete(preSaveTagsInput, preSaveTagsDropdown, e.target.value);
+  });
+  
+  preSaveTagsInput.addEventListener('keydown', (e) => {
+    if (!preSaveTagsDropdown.classList.contains('hidden')) {
+      handleAutocompleteKeydown(e, preSaveTagsInput, preSaveTagsDropdown);
+    }
+  });
+  
+  // Click handling for pre-save tags autocomplete
+  preSaveTagsDropdown.addEventListener('click', (e) => {
+    if (e.target.classList.contains('autocomplete-item')) {
+      const selectedHashtag = e.target.dataset.hashtag;
+      replaceCurrentWord(preSaveTagsInput, selectedHashtag);
+      hideAutocomplete(preSaveTagsDropdown);
+      preSaveTagsInput.focus();
+    }
+  });
+  
   // Thoughtstream button
   thoughtstreamBtn.addEventListener('click', async () => {
     const thoughtstreamUrl = 'https://ideaflow.app';
@@ -372,6 +404,27 @@ function setupEventListeners() {
     if (e.key === 'Enter') {
       e.preventDefault();
       addTagsBtn.click();
+    }
+  });
+  
+  // Autocomplete for post-save tags input
+  tagsInput.addEventListener('input', (e) => {
+    showAutocomplete(tagsInput, tagsDropdown, e.target.value);
+  });
+  
+  tagsInput.addEventListener('keydown', (e) => {
+    if (!tagsDropdown.classList.contains('hidden')) {
+      handleAutocompleteKeydown(e, tagsInput, tagsDropdown);
+    }
+  });
+  
+  // Click handling for post-save tags autocomplete
+  tagsDropdown.addEventListener('click', (e) => {
+    if (e.target.classList.contains('autocomplete-item')) {
+      const selectedHashtag = e.target.dataset.hashtag;
+      replaceCurrentWord(tagsInput, selectedHashtag);
+      hideAutocomplete(tagsDropdown);
+      tagsInput.focus();
     }
   });
   
@@ -490,6 +543,19 @@ function setupEventListeners() {
       }
     });
   }
+  
+  // Global click handler to close autocomplete dropdowns
+  document.addEventListener('click', (e) => {
+    // Close pre-save tags dropdown if clicking outside
+    if (!preSaveTagsInput.contains(e.target) && !preSaveTagsDropdown.contains(e.target)) {
+      hideAutocomplete(preSaveTagsDropdown);
+    }
+    
+    // Close post-save tags dropdown if clicking outside
+    if (!tagsInput.contains(e.target) && !tagsDropdown.contains(e.target)) {
+      hideAutocomplete(tagsDropdown);
+    }
+  });
 }
 
 // Handle quick save
@@ -769,4 +835,115 @@ function showConfirmation(message, onConfirm) {
   confirmMessage.textContent = message;
   pendingAction = onConfirm;
   confirmModal.classList.remove('hidden');
+}
+
+// Load available hashtags for autocomplete
+async function loadAvailableHashtags() {
+  try {
+    const response = await chromeApi.runtime.sendMessage({ action: 'getAllHashtags' });
+    if (response.success) {
+      availableHashtags = response.hashtags || [];
+      logger.info('Loaded hashtags for autocomplete', { count: availableHashtags.length });
+    } else {
+      logger.error('Failed to load hashtags', { error: response.error });
+      availableHashtags = [];
+    }
+  } catch (error) {
+    logger.error('Error loading hashtags', { error: error.message });
+    availableHashtags = [];
+  }
+}
+
+// Show autocomplete dropdown
+function showAutocomplete(input, dropdown, query) {
+  const currentWord = getCurrentWord(input);
+  if (!currentWord || currentWord.length < 1) {
+    hideAutocomplete(dropdown);
+    return;
+  }
+  
+  // Filter hashtags that match the current word (case insensitive)
+  const matches = availableHashtags.filter(hashtag => 
+    hashtag.toLowerCase().includes(currentWord.toLowerCase())
+  );
+  
+  if (matches.length === 0) {
+    hideAutocomplete(dropdown);
+    return;
+  }
+  
+  // Populate dropdown
+  dropdown.innerHTML = matches.map(hashtag => 
+    `<div class="autocomplete-item" data-hashtag="${escapeHtml(hashtag)}">${escapeHtml(hashtag)}</div>`
+  ).join('');
+  
+  dropdown.classList.remove('hidden');
+  currentFocus = -1; // Reset focus
+}
+
+// Hide autocomplete dropdown
+function hideAutocomplete(dropdown) {
+  dropdown.classList.add('hidden');
+  currentFocus = -1;
+}
+
+// Get the current word being typed (for space-separated tags)
+function getCurrentWord(input) {
+  const value = input.value;
+  const cursorPos = input.selectionStart;
+  const beforeCursor = value.substring(0, cursorPos);
+  const words = beforeCursor.split(/\s+/);
+  return words[words.length - 1];
+}
+
+// Replace the current word with selected hashtag
+function replaceCurrentWord(input, selectedHashtag) {
+  const value = input.value;
+  const cursorPos = input.selectionStart;
+  const beforeCursor = value.substring(0, cursorPos);
+  const afterCursor = value.substring(cursorPos);
+  
+  // Split before cursor by spaces and replace the last word
+  const words = beforeCursor.split(/\s+/);
+  words[words.length - 1] = selectedHashtag;
+  
+  // Reconstruct the value
+  const newBeforeCursor = words.join(' ');
+  const newValue = newBeforeCursor + ' ' + afterCursor.trimStart();
+  
+  input.value = newValue;
+  
+  // Set cursor position after the inserted hashtag
+  const newCursorPos = newBeforeCursor.length + 1;
+  input.setSelectionRange(newCursorPos, newCursorPos);
+}
+
+// Handle keyboard navigation in autocomplete
+function handleAutocompleteKeydown(e, input, dropdown) {
+  const items = dropdown.querySelectorAll('.autocomplete-item');
+  
+  if (e.key === 'ArrowDown') {
+    e.preventDefault();
+    currentFocus = currentFocus < items.length - 1 ? currentFocus + 1 : 0;
+    setActiveItem(items);
+  } else if (e.key === 'ArrowUp') {
+    e.preventDefault();
+    currentFocus = currentFocus > 0 ? currentFocus - 1 : items.length - 1;
+    setActiveItem(items);
+  } else if (e.key === 'Enter' && currentFocus >= 0) {
+    e.preventDefault();
+    const selectedHashtag = items[currentFocus].dataset.hashtag;
+    replaceCurrentWord(input, selectedHashtag);
+    hideAutocomplete(dropdown);
+  } else if (e.key === 'Escape') {
+    e.preventDefault();
+    hideAutocomplete(dropdown);
+  }
+}
+
+// Set active autocomplete item
+function setActiveItem(items) {
+  items.forEach((item, index) => {
+    item.classList.toggle('highlighted', index === currentFocus);
+  });
 }
