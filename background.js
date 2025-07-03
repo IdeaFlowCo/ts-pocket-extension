@@ -333,7 +333,6 @@ async function saveToThoughtstream(articleData, tags = []) {
       authorId: userId,
       tokens: finalTokens,
       readAll: false,
-      createdAt: timestamp,
       updatedAt: timestamp,
       deletedAt: null,
       folderId: null,
@@ -616,7 +615,6 @@ async function updateNoteWithTags(noteId, tags) {
       tokens: tokens,
       position: article.position || String(-new Date(article.savedAt).getTime()), // Keep original position
       readAll: false,
-      createdAt: article.createdAt || article.savedAt, // Keep original creation time
       updatedAt: timestamp,
       deletedAt: null,
       folderId: null,
@@ -1011,7 +1009,6 @@ async function saveSelectionToThoughtstream(selectionData) {
       authorId: userId,
       tokens: finalTokens,
       readAll: false,
-      createdAt: timestamp,
       updatedAt: timestamp,
       deletedAt: null,
       folderId: null,

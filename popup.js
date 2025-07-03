@@ -211,8 +211,22 @@ function displayRecentSaves(articles) {
     return;
   }
   
+  // Sort articles by recency (newest first) before display
+  const sortedArticles = [...articles].sort((a, b) => {
+    // Primary: savedAt timestamp (newest first)
+    if (a.savedAt && b.savedAt) {
+      return new Date(b.savedAt) - new Date(a.savedAt);
+    }
+    // Secondary: position (handle negative values - more negative = newer)
+    if (a.position && b.position) {
+      return Number(b.position) - Number(a.position);
+    }
+    // Tertiary: fallback to original order
+    return 0;
+  });
+  
   const searchQuery = searchInput?.value || '';
-  const filtered = searchQuery ? searchArticles(searchQuery) : articles;
+  const filtered = searchQuery ? searchArticles(searchQuery) : sortedArticles;
   
   if (filtered.length === 0) {
     recentList.innerHTML = '<div class="loading">No matching articles found</div>';
