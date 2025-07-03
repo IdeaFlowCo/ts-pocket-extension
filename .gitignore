@@ -6,6 +6,10 @@ Thumbs.db
 build/
 *.zip
 
+# Design assets (keep locally only)
+tspocket_800.png
+ideapocket_800.png
+
 # Environment files
 .env
 .env.*
