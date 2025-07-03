@@ -435,6 +435,15 @@ function setupEventListeners() {
   // Auth button
   authBtn.addEventListener('click', handleAuth);
   
+  // Open saved note button
+  const openSavedNoteBtn = document.getElementById('openSavedNoteBtn');
+  openSavedNoteBtn.addEventListener('click', () => {
+    if (lastSavedNoteId) {
+      const thoughtstreamUrl = `https://ideaflow.app/?noteIdList=%5B%22${lastSavedNoteId}%22%5D`;
+      chrome.tabs.create({ url: thoughtstreamUrl });
+    }
+  });
+  
   // Add tags button
   addTagsBtn.addEventListener('click', async () => {
     // First, handle any unpilled text in the input
