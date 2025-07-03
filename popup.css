@@ -322,8 +322,16 @@ body {
 }
 
 .small-btn {
-  padding: 8px 12px;
-  font-size: 13px;
+  padding: 4px 8px;
+  font-size: 12px;
+  min-height: auto;
+}
+
+.secondary-btn.small-btn {
+  padding: 4px 8px;
+  font-size: 12px;
+  border-radius: 4px;
+  min-width: auto;
 }
 
 /* Recent Section */
