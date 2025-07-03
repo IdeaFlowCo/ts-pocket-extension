@@ -249,12 +249,12 @@ export async function updateBadge(tabId, text, color = '#4CAF50', duration = 200
           await action.setBadgeText({ text: '', tabId });
         } catch (error) {
           // Tab might be closed, ignore error
-          console.debug('Badge clear error (tab may be closed):', error);
+          logger.debug('Badge clear error (tab may be closed):', { error: error.message });
         }
       }, duration);
     }
   } catch (error) {
-    console.error('Failed to update badge:', error);
+    logger.error('Failed to update badge:', { error: error.message });
     // Don't throw - badge update failures shouldn't break functionality
   }
 }

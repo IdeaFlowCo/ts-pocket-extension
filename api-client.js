@@ -222,7 +222,12 @@ export class ApiClient {
         let data;
         try {
           data = await response.json();
-          logger.info(`API Success: ${method} ${path}`);
+          logger.info(`API Success: ${method} ${path}`, {
+            responseType: Array.isArray(data) ? 'array' : typeof data,
+            hasData: !!data?.data,
+            hasError: !!data?.error,
+            arrayLength: Array.isArray(data) ? data.length : (Array.isArray(data?.data) ? data.data.length : 'N/A')
+          });
         } catch (jsonError) {
           logger.error('Failed to parse JSON response', { error: jsonError.message, status: response.status });
           throw new TsPocketError(

@@ -50,6 +50,13 @@ let currentFocus = -1; // Track which autocomplete item is highlighted
 document.addEventListener('DOMContentLoaded', async () => {
   logger.info('Popup loaded', { fuseAvailable: typeof Fuse !== 'undefined' });
   
+  // Display version from manifest
+  const manifest = chrome.runtime.getManifest();
+  const versionElement = document.getElementById('app-version');
+  if (versionElement) {
+    versionElement.textContent = `TsPocket v${manifest.version}`;
+  }
+  
   // Check authentication status
   await checkAuthStatus();
   

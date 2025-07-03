@@ -320,7 +320,7 @@ function extractText(element) {
   return result;
   
   } catch (error) {
-    console.warn('Content extraction failed, falling back to simple text:', error);
+    logger.warn('Content extraction failed, falling back to simple text:', { error: error.message });
     
     // Fallback to simple text extraction
     try {
@@ -333,7 +333,7 @@ function extractText(element) {
       
       return text;
     } catch (fallbackError) {
-      console.error('Even fallback extraction failed:', fallbackError);
+      logger.error('Even fallback extraction failed:', { error: fallbackError.message });
       return 'Unable to extract content from this page.';
     }
   }
@@ -388,15 +388,15 @@ function extractImages(element) {
 
 // Listen for extraction requests from background script
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  console.log('🔍 [CONTENT] Received message:', request);
+  logger.info('Received message', { action: request.action });
   
   if (request.action === 'extractContent') {
     // Use async IIFE to handle the response properly
     (async () => {
       try {
-        console.log('📄 [CONTENT] Starting content extraction...');
+        logger.info('Starting content extraction...');
         const content = extractArticleContent();
-        console.log('✅ [CONTENT] Extraction successful:', {
+        logger.info('Extraction successful', {
           title: content.title,
           contentLength: content.content?.length,
           hasDescription: !!content.description,
@@ -404,7 +404,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
         });
         sendResponse({ success: true, content });
       } catch (error) {
-        console.error('❌ [CONTENT] Extraction failed:', error);
+        logger.error('Extraction failed', { error: error.message });
         sendResponse({ success: false, error: error.message });
       }
     })();
