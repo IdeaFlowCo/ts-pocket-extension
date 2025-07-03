@@ -219,9 +219,7 @@ body {
 
 /* Tags Section */
 .tags-section {
-  display: flex;
-  gap: 8px;
-  align-items: center;
+  margin: 0;
 }
 
 .post-save-options .tags-section {
@@ -247,7 +245,7 @@ body {
 
 .tags-input {
   flex: 1;
-  padding: 8px 32px 8px 12px;
+  padding: 8px 72px 8px 12px; /* Increased right padding for both buttons */
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 14px;
@@ -261,7 +259,7 @@ body {
 
 .clear-tags-btn {
   position: absolute;
-  right: 8px;
+  right: 60px; /* Make room for Add button */
   top: 50%;
   transform: translateY(-50%);
   background: none;
@@ -286,6 +284,37 @@ body {
 
 .clear-tags-btn.hidden {
   display: none;
+}
+
+.add-tags-btn {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: #019AB0;
+  border: 1px solid #019AB0;
+  color: white;
+  cursor: pointer;
+  padding: 4px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  border-radius: 4px;
+  transition: all 0.2s ease;
+  z-index: 20;
+  white-space: nowrap;
+}
+
+.add-tags-btn:hover {
+  background: #017a8c;
+  border-color: #017a8c;
+  transform: translateY(-50%) scale(1.02);
+}
+
+.add-tags-btn:disabled {
+  background: #ccc;
+  border-color: #ccc;
+  cursor: not-allowed;
+  transform: translateY(-50%);
 }
 
 /* Tag Pills */
