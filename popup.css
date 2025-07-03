@@ -241,6 +241,7 @@ body {
 .pre-save-tags .tags-input {
   width: 100%;
   box-sizing: border-box;
+  padding: 8px 32px 8px 12px; /* Only need room for × button */
 }
 
 .tags-input {
@@ -259,7 +260,7 @@ body {
 
 .clear-tags-btn {
   position: absolute;
-  right: 60px; /* Make room for Add button */
+  right: 60px; /* Make room for Add button in post-save section */
   top: 50%;
   transform: translateY(-50%);
   background: none;
@@ -275,6 +276,11 @@ body {
   border-radius: 50%;
   transition: background-color 0.2s, color 0.2s;
   z-index: 20;
+}
+
+/* Pre-save clear button positioning (no Add button) */
+.pre-save-tags .clear-tags-btn {
+  right: 8px; /* No Add button, so position at edge */
 }
 
 .clear-tags-btn:hover {
