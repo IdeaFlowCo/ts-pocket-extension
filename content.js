@@ -1,4 +1,4 @@
-// Content script for TsPocket - Enhanced article extraction
+// Content script for IdeaPocket - Enhanced article extraction
 
 // Article extraction using Readability-inspired techniques
 function extractArticleContent() {

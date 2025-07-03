@@ -1,7 +1,7 @@
 // Chrome API wrapper with proper error handling
-import { TsPocketError } from './api-client.js';
+import { IdeaPocketError } from './api-client.js';
 
-export class ChromeApiError extends TsPocketError {
+export class ChromeApiError extends IdeaPocketError {
   constructor(api, operation, chromeError) {
     const message = chromeError?.message || 'Unknown Chrome API error';
     super(

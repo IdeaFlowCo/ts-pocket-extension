@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-TsPocket is a Chrome Extension that provides a Pocket-like interface for saving articles to Thoughtstream/Ideaflow. Despite the folder name "ts-pocket-extension", this is a pure JavaScript project (no TypeScript).
+IdeaPocket is a Chrome Extension that provides a Pocket-like interface for saving articles to Thoughtstream/Ideaflow. Despite the folder name "ts-pocket-extension", this is a pure JavaScript project (no TypeScript).
 
 ## Architecture
 
@@ -98,6 +98,12 @@ Custom error hierarchy with specific error types:
 - PKCE flow ensures secure OAuth without client secret
 - All API calls use HTTPS
 
+## Logging Guidelines
+
+- **CRITICAL RULE:** Never use `console.log` in this project
+- Always use the `logger` module for all logging
+- This ensures consistent logging, debug mode support, and potential log export functionality
+
 ## Common Tasks
 
 **Add a new API endpoint:**
@@ -187,3 +193,4 @@ gemini -p "@src/payment/ @tests/ Is payment module tested? List test cases"
 - Built-in file type filtering with -t flag
 - Smart case sensitivity by default
 - Better Unicode support
+```

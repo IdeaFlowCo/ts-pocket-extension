@@ -1,4 +1,4 @@
-// Background script for TsPocket Chrome Extension
+// Background script for IdeaPocket Chrome Extension
 import { loginWithAuth0, logout, isLoggedIn } from './auth.js';
 import CONFIG from './config.js';
 import apiClient, { ContentExtractionError } from './api-client.js';
@@ -62,7 +62,7 @@ async function initializeExtension() {
   }
   
   try {
-    log.info('Initializing TsPocket extension');
+    log.info('Initializing IdeaPocket extension');
     
     // Create context menu (remove existing first to avoid duplicates)
     try {
@@ -70,14 +70,14 @@ async function initializeExtension() {
       
       // Create parent menu
       await chromeApi.contextMenus.create({
-        id: 'saveToTsPocket',
-        title: 'Save to TsPocket',
+        id: 'saveToIdeaPocket',
+        title: 'Save to IdeaPocket',
         contexts: ['page', 'link']
       });
       
       // Create separate menu for text selection
       await chromeApi.contextMenus.create({
-        id: 'saveSelectionToTsPocket',
+        id: 'saveSelectionToIdeaPocket',
         title: 'Save Selection as Highlight',
         contexts: ['selection']
       });
@@ -109,7 +109,7 @@ async function initializeExtension() {
     
     isInitialized = true;
     const manifest = chrome.runtime.getManifest();
-    log.info(`TsPocket v${manifest.version} initialized successfully`);
+    log.info(`IdeaPocket v${manifest.version} initialized successfully`);
   } catch (error) {
     log.error('Extension initialization failed:', error);
     isInitialized = false;
@@ -1270,12 +1270,12 @@ async function handleMessage(request, sender, sendResponse) {
 let lastSelectionData = null;
 
 chromeApi.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === 'saveToTsPocket') {
+  if (info.menuItemId === 'saveToIdeaPocket') {
     // Handle full page save
     handleSave(tab).catch(error => {
       log.error('Context menu save failed:', error);
     });
-  } else if (info.menuItemId === 'saveSelectionToTsPocket') {
+  } else if (info.menuItemId === 'saveSelectionToIdeaPocket') {
     // Handle text selection save
     if (info.selectionText) {
       try {

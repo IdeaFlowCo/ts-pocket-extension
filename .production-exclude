@@ -1,8 +1,19 @@
 # Files to exclude from production build
 debug.html
 debug.js
+DEBUG_INSTRUCTIONS.md
+test-save.html
+build-dev.sh
+build-production.sh
+utils.js
+timestamp-migration.js
+10X_ENGINEER_WORKFLOW.md
+10x-workflow.sh
 *.log
 .DS_Store
+*.zip
+tspocket_800.png
+ideapocket_800.png
 
 # When creating production build, run:
-# zip -r tspocket.zip . -x@.production-exclude
+# zip -r ideapocket.zip . -x@.production-exclude

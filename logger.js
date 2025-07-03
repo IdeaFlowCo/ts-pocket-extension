@@ -1,4 +1,4 @@
-// Unified logging system for TsPocket
+// Unified logging system for IdeaPocket
 class Logger {
   constructor() {
     this.logs = [];
@@ -132,7 +132,7 @@ class Logger {
       const versionLog = {
         timestamp: new Date().toISOString(),
         level: 'INFO',
-        message: `TsPocket Version: ${manifest.version}`,
+        message: `IdeaPocket Version: ${manifest.version}`,
         data: {},
         source: 'SYSTEM'
       };

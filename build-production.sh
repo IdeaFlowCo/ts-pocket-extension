@@ -8,11 +8,11 @@
 # 1. Update version in manifest.json
 # 2. Run: ./build-production.sh
 # 3. Test the build/ directory as unpacked extension
-# 4. Upload tspocket-production.zip to https://chrome.google.com/webstore/devconsole
+# 4. Upload ideapocket-production.zip to https://chrome.google.com/webstore/devconsole
 # 5. Submit for review and wait 1-3 business days
 
 # Build script for production release
-echo "Building TsPocket for production..."
+echo "Building IdeaPocket for production..."
 
 # Check if we're in the right directory
 if [ ! -f "manifest.json" ]; then
@@ -29,17 +29,17 @@ rsync -av --exclude-from='.production-exclude' \
     --exclude='.git/' \
     --exclude='.production-exclude' \
     --exclude='build-production.sh' \
-    --exclude='tspocket-production.zip' \
-    --exclude='tspocket_800.png' \
+    --exclude='ideapocket-production.zip' \
+    --exclude='ideapocket_800.png' \
     . build/
 
 # Create zip for Chrome Web Store
 cd build
-zip -r ../tspocket-production.zip . -x "*.DS_Store"
+zip -r ../ideapocket-production.zip . -x "*.DS_Store"
 cd ..
 
 echo "✅ Production build complete!"
-echo "📦 Output: tspocket-production.zip"
+echo "📦 Output: ideapocket-production.zip"
 echo ""
 echo "📋 CHROME WEB STORE UPLOAD INSTRUCTIONS:"
 echo "==========================================="
@@ -54,7 +54,7 @@ echo "2. UPLOAD TO CHROME WEB STORE:"
 echo "   - Go to: https://chrome.google.com/webstore/devconsole"
 echo "   - Find your extension (or create new item)"
 echo "   - Click 'Package' → 'Upload new package'"
-echo "   - Upload: tspocket-production.zip"
+echo "   - Upload: ideapocket-production.zip"
 echo ""
 echo "3. UPDATE STORE LISTING (if needed):"
 echo "   - Update version number in description"

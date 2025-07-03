@@ -1,6 +1,6 @@
 {
   "manifest_version": 3,
-  "name": "TsPocket - Save to Thoughtstream",
+  "name": "IdeaPocket - Save to Thoughtstream",
   "version": "1.0.2",
   "description": "Save articles and text selections to Thoughtstream with a Pocket-like experience",
   "author": "Ideaflow",
@@ -55,7 +55,7 @@
         "default": "Ctrl+Shift+P",
         "mac": "Command+Shift+P"
       },
-      "description": "Save to TsPocket"
+      "description": "Save to IdeaPocket"
     }
   }
 }

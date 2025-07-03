@@ -1,4 +1,4 @@
-# TsPocket Chrome Extension
+# IdeaPocket Chrome Extension
 
 A Chrome extension that provides a Pocket-like experience for saving articles to Thoughtstream.
 
@@ -23,7 +23,7 @@ A Chrome extension that provides a Pocket-like experience for saving articles to
 
 **IMPORTANT**: The API base URL needs to be confirmed. Currently set to `https://api.thoughtstream.io` in background.js line 5.
 
-1. Click the TsPocket icon in your browser toolbar
+1. Click the IdeaPocket icon in your browser toolbar
 2. Click the settings gear icon
 3. Enter your Thoughtstream User ID
 4. Set up authentication (currently requires manual token configuration)
@@ -31,12 +31,12 @@ A Chrome extension that provides a Pocket-like experience for saving articles to
 ## Usage
 
 ### Save an Article
-- **Method 1**: Click the TsPocket icon and then click "Save to Thoughtstream"
+- **Method 1**: Click the IdeaPocket icon and then click "Save to Thoughtstream"
 - **Method 2**: Use the keyboard shortcut Cmd+Shift+P (Mac) or Ctrl+Shift+P (Windows/Linux)
-- **Method 3**: Right-click on any page and select "Save to TsPocket"
+- **Method 3**: Right-click on any page and select "Save to IdeaPocket"
 
 ### View Recent Saves
-- Click the TsPocket icon to see your 5 most recent saves
+- Click the IdeaPocket icon to see your 5 most recent saves
 - Click on any saved article to open it in a new tab
 
 ## Technical Details

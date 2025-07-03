@@ -1,35 +1,35 @@
-// Unified API client for TsPocket extension
+// Unified API client for IdeaPocket extension
 import CONFIG from './config.js';
 import { getValidAccessToken } from './auth.js';
 import logger from './logger.js';
 
 
 // Custom error classes
-export class TsPocketError extends Error {
+export class IdeaPocketError extends Error {
   constructor(message, code, details = {}) {
     super(message);
-    this.name = 'TsPocketError';
+    this.name = 'IdeaPocketError';
     this.code = code;
     this.details = details;
     this.timestamp = new Date().toISOString();
   }
 }
 
-export class NetworkError extends TsPocketError {
+export class NetworkError extends IdeaPocketError {
   constructor(message, details) {
     super(message, 'NETWORK_ERROR', details);
     this.name = 'NetworkError';
   }
 }
 
-export class AuthError extends TsPocketError {
+export class AuthError extends IdeaPocketError {
   constructor(message, details) {
     super(message, 'AUTH_ERROR', details);
     this.name = 'AuthError';
   }
 }
 
-export class RateLimitError extends TsPocketError {
+export class RateLimitError extends IdeaPocketError {
   constructor(retryAfter, details) {
     super(`Rate limited. Retry after ${retryAfter}ms`, 'RATE_LIMIT', { retryAfter, ...details });
     this.name = 'RateLimitError';
@@ -37,7 +37,7 @@ export class RateLimitError extends TsPocketError {
   }
 }
 
-export class ValidationError extends TsPocketError {
+export class ValidationError extends IdeaPocketError {
   constructor(message, field, details) {
     super(message, 'VALIDATION_ERROR', { field, ...details });
     this.name = 'ValidationError';
@@ -45,7 +45,7 @@ export class ValidationError extends TsPocketError {
   }
 }
 
-export class ContentExtractionError extends TsPocketError {
+export class ContentExtractionError extends IdeaPocketError {
   constructor(message, details) {
     super(message, 'CONTENT_EXTRACTION_ERROR', details);
     this.name = 'ContentExtractionError';
@@ -198,7 +198,7 @@ export class ApiClient {
           if (response.status >= 400 && response.status < 500) {
             const errorBody = await response.text();
             logger.error(`Client error ${response.status}`, { statusText: response.statusText, path, method });
-            throw new TsPocketError(
+            throw new IdeaPocketError(
               `API request failed: ${response.status} ${response.statusText}`, 
               'CLIENT_ERROR',
               { status: response.status, body: errorBody, path, method }
@@ -242,7 +242,7 @@ export class ApiClient {
         logger.error(`API request attempt ${attempt + 1} failed`, { error: error.message });
         
         // Re-throw specific errors
-        if (error instanceof TsPocketError) {
+        if (error instanceof IdeaPocketError) {
           throw error;
         }
         

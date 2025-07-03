@@ -1,4 +1,4 @@
-// Popup script for TsPocket
+// Popup script for IdeaPocket
 import CONFIG from './config.js';
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
@@ -63,7 +63,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const manifest = chrome.runtime.getManifest();
   const versionElement = document.getElementById('app-version');
   if (versionElement) {
-    versionElement.textContent = `TsPocket v${manifest.version}`;
+    versionElement.textContent = `IdeaPocket v${manifest.version}`;
   }
   
   // Check authentication status

@@ -1,10 +1,10 @@
-# Privacy Policy for TsPocket - Save to Thoughtstream
+# Privacy Policy for IdeaPocket - Save to Thoughtstream
 
 *Last updated: June 20, 2025*
 
 ## 1. Overview
 
-TsPocket ("we", "our", or "the extension") is a browser extension designed to help you save articles and web content directly to your Thoughtstream account. We are committed to protecting your privacy and handling your data transparently. This privacy policy explains what information we collect, how it is used, and how it is safeguarded.
+IdeaPocket ("we", "our", or "the extension") is a browser extension designed to help you save articles and web content directly to your Thoughtstream account. We are committed to protecting your privacy and handling your data transparently. This privacy policy explains what information we collect, how it is used, and how it is safeguarded.
 
 ## 2. Information We Collect and Why
 
@@ -64,4 +64,4 @@ For questions about this privacy policy, please contact:
 
 ## 10. Consent
 
-By installing and using the TsPocket extension, you consent to this privacy policy.
+By installing and using the IdeaPocket extension, you consent to this privacy policy.
