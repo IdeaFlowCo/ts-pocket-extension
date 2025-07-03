@@ -361,12 +361,17 @@ async function handleSave(tab, tags = []) {
     
     log.info('Save completed', { noteId: result.noteId });
     
-    // Store in local history
+    // Store in local history with position and other metadata for updates
+    const savedAt = new Date().toISOString();
+    const position = String(-new Date().getTime());
     await storageService.addSavedArticle({
       ...articleData,
       noteId: result.noteId,
-      tags: tags,
-      savedAt: new Date().toISOString(),
+      tags: ['pocket', ...tags], // Include default pocket tag
+      savedAt: savedAt,
+      position: position,
+      createdAt: savedAt,
+      insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
     });
     
     // Show success badge
@@ -444,6 +449,12 @@ async function updateNoteWithTags(noteId, tags) {
     }
     
     const article = savedArticles[articleIndex];
+    const userId = (await storageService.getUserInfo()).userId;
+    const timestamp = new Date().toISOString();
+    
+    if (!userId) {
+      throw new Error('User ID not found. Please login again.');
+    }
     
     // Get existing tags from local storage
     const existingTags = article.tags || ['pocket'];
@@ -451,36 +462,65 @@ async function updateNoteWithTags(noteId, tags) {
     // Combine existing tags with new tags (avoid duplicates)
     const allTags = [...new Set([...existingTags, ...tags])];
     
-    // Format all tags as hashtags
-    const hashtagString = allTags.map(tag => tag.startsWith('#') ? tag : `#${tag}`).join(' ');
+    // Create tokens for the updated note (matching the format used in saveToThoughtstream)
+    const tokens = [];
     
-    // Create the updated note text
-    // Simple format: tags on first line, then URL
-    const noteText = `${hashtagString}\n\n${article.url}`;
+    // First paragraph: All tags as hashtags
+    const firstParagraphContent = allTags.flatMap(tag => ([
+        { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
+        { type: 'text', content: ' ', marks: [] }
+    ]));
     
-    // Prepare minimal update payload
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: firstParagraphContent,
+      depth: 0
+    });
+    
+    // Second paragraph: URL
+    tokens.push({
+      type: 'paragraph',
+      tokenId: generateShortId(),
+      content: [{ type: 'text', marks: [], content: article.url }],
+      depth: 0
+    });
+    
+    // Prepare the complete note update payload (matching the create format)
     const updateData = {
       id: noteId,
-      text: noteText,
-      updatedAt: new Date().toISOString()
+      authorId: userId,
+      tokens: tokens,
+      position: article.position || String(-new Date(article.savedAt).getTime()), // Keep original position
+      readAll: false,
+      createdAt: article.createdAt || article.savedAt, // Keep original creation time
+      updatedAt: timestamp,
+      deletedAt: null,
+      folderId: null,
+      insertedAt: article.insertedAt || new Date(article.savedAt).toISOString().slice(0, 10).replace(/-/g, ''),
+      isSharedPrivately: false,
+      directUrlOnly: true,
+      expansionSetting: 'auto'
     };
     
-    log.info('Sending update to API', { noteId, newTagCount: allTags.length, noteText });
+    log.info('Sending token-based update to API', { noteId, newTagCount: allTags.length });
     
     // Update the note
     const response = await apiClient.post('/notes', { notes: [updateData] });
     
-    // Check if we got a response
-    if (!response || !response.data) {
-      throw new Error('No response from API');
+    // Check if we got a successful response
+    const updatedNote = response?.data?.find(note => note.id === noteId);
+    if (!updatedNote) {
+      throw new Error('API did not confirm update');
     }
     
-    log.info('✅ Note update request sent', { noteId });
+    log.info('✅ Note update confirmed', { noteId });
     
     // Update local history with new tags
     savedArticles[articleIndex] = {
       ...article,
-      tags: allTags
+      tags: allTags,
+      updatedAt: timestamp
     };
     await storageService.setSavedArticles(savedArticles);
     
@@ -531,6 +571,8 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
       domain = 'unknown';
     }
     
+    const positionValue = String(-new Date().getTime());
+    
     await storageService.addSavedArticle({
       title: domain,  // Just show domain as title
       url: selectionData.url,
@@ -544,7 +586,10 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
       noteId: result.noteId,
       tags: ['highlight'],
       isHighlight: true,
-      originalPageTitle: selectionData.title  // Store original title for reference
+      originalPageTitle: selectionData.title,  // Store original title for reference
+      position: positionValue,
+      createdAt: selectionData.savedAt,
+      insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
     });
     
     // Show success
@@ -625,6 +670,8 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       }
     }
     
+    const positionValue = String(-new Date().getTime());
+    
     await storageService.addSavedArticle({
       title: displayTitle,
       url: enrichedData.url,
@@ -642,7 +689,10 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       isHighlight: true,
       originalPageTitle: enrichedData.title,
       platform: enrichedData.platform,
-      tweetInfo: enrichedData.tweetInfo
+      tweetInfo: enrichedData.tweetInfo,
+      position: positionValue,
+      createdAt: enrichedData.savedAt,
+      insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
     });
     
     // Show success
