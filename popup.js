@@ -230,6 +230,11 @@ function displayRecentSaves(articles) {
         ${displayContent}
         ${tags}
         <div class="recent-item-time">${escapeHtml(timeAgo)}</div>
+        <button class="open-note-btn" data-note-id="${escapeHtml(articleId)}" title="Open in Thoughtstream">
+          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="14" height="14">
+            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+          </svg>
+        </button>
         <button class="delete-btn" data-note-id="${escapeHtml(articleId)}" title="Delete">×</button>
       </div>
     `;
@@ -240,6 +245,27 @@ function displayRecentSaves(articles) {
 function setupEventListeners() {
   // Event delegation for recent list (handles both article clicks and delete buttons)
   recentList.addEventListener('click', async (e) => {
+    // Handle open note button clicks
+    if (e.target.closest('.open-note-btn')) {
+      e.stopPropagation();
+      e.preventDefault();
+      
+      const btn = e.target.closest('.open-note-btn');
+      const noteId = btn.dataset.noteId;
+      if (!noteId || noteId === 'undefined') {
+        showStatus('Cannot open: Note ID not found', 'error');
+        return;
+      }
+      
+      // Open the note in Thoughtstream app (internal link)
+      // Format: https://ideaflow.app/?noteIdList=%5B%22noteId%22%5D
+      const noteIdArray = JSON.stringify([noteId]);
+      const encodedNoteIdList = encodeURIComponent(noteIdArray);
+      const thoughtstreamNoteUrl = `https://ideaflow.app/?noteIdList=${encodedNoteIdList}`;
+      await chrome.tabs.create({ url: thoughtstreamNoteUrl, active: true });
+      return;
+    }
+    
     // Handle delete button clicks
     if (e.target.classList.contains('delete-btn')) {
       e.stopPropagation();
@@ -271,7 +297,7 @@ function setupEventListeners() {
     
     // Handle article clicks (open in new tab)
     const recentItem = e.target.closest('.recent-item');
-    if (recentItem) {
+    if (recentItem && !e.target.closest('.open-note-btn') && !e.target.closest('.delete-btn')) {
       const url = recentItem.dataset.url;
       if (url && url !== 'undefined') {
         chromeApi.tabs.create({ url: url });
