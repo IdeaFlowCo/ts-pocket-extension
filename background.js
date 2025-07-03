@@ -123,18 +123,12 @@ function generateShortId() {
   return Math.random().toString(36).substring(2, 12);
 }
 
-// Convert URL to proper link tokens (based on Thoughtstream's getAsLinkLoaderTokens)
+// Convert URL to clickable link tokens
 function createLinkTokens(url) {
   return {
     type: "paragraph",
     tokenId: generateShortId(),
     content: [
-      {
-        type: "linkloader",
-        tokenId: generateShortId(),
-        url: url,
-        isActive: true,
-      },
       {
         type: "link",
         content: url,
@@ -308,10 +302,20 @@ async function saveToThoughtstream(articleData, tags = []) {
     // Build tokens array
     const tokens = [];
 
-    // First token: URL as link
+    // First token: Title as plain text
+    if (articleData.title) {
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [{ type: 'text', content: articleData.title, marks: [] }],
+        depth: 0,
+      });
+    }
+
+    // Second token: URL as clickable link
     tokens.push(createLinkTokens(articleData.url));
 
-    // Second token: Tags (moved to last line)
+    // Third token: Tags (moved to last line)
     const initialTags = ['pocket', ...tags];
     const tagsContent = initialTags.flatMap(tag => ([
         { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
