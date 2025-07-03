@@ -42,6 +42,13 @@ let fuse = null; // Fuse.js instance
 document.addEventListener('DOMContentLoaded', async () => {
   logger.info('Popup loaded', { fuseAvailable: typeof Fuse !== 'undefined' });
   
+  // Display version from manifest
+  const manifest = chrome.runtime.getManifest();
+  const versionElement = document.getElementById('app-version');
+  if (versionElement) {
+    versionElement.textContent = `TsPocket v${manifest.version}`;
+  }
+  
   // Check authentication status
   await checkAuthStatus();
   
@@ -74,7 +81,7 @@ async function checkAuthStatus() {
       await storageService.set({ hasSeenSetup: true });
     }
   } catch (error) {
-    console.error('Failed to check auth status:', error);
+    logger.error('Failed to check auth status:', { error: error.message });
     isAuthenticated = false;
     updateAuthDisplay();
   }
@@ -135,7 +142,7 @@ async function loadRecentSaves() {
     
     displayRecentSaves(allSavedArticles);
   } catch (error) {
-    console.error('Failed to load saved articles:', error);
+    logger.error('Failed to load saved articles:', { error: error.message });
     allSavedArticles = [];
     displayRecentSaves(allSavedArticles);
   }
@@ -288,7 +295,7 @@ function setupEventListeners() {
             showStatus('Article not found', 'error');
           }
         } catch (error) {
-          console.error('Delete error:', error);
+          logger.error('Delete error:', { error: error.message });
           showStatus('Failed to delete article', 'error');
         }
       });
@@ -360,7 +367,7 @@ function setupEventListeners() {
         addTagsBtn.textContent = 'Add Tags';
       }
     } catch (error) {
-      console.error('Failed to update tags:', error);
+      logger.error('Failed to update tags:', { error: error.message });
       showStatus('Failed to add tags', 'error');
       addTagsBtn.disabled = false;
       addTagsBtn.textContent = 'Add Tags';
@@ -402,7 +409,7 @@ function setupEventListeners() {
         displayRecentSaves([]);
         showStatus('All articles deleted', 'success');
       } catch (error) {
-        console.error('Failed to delete all articles:', error);
+        logger.error('Failed to delete all articles:', { error: error.message });
         showStatus('Error deleting articles', 'error');
       }
     });

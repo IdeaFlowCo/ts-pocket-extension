@@ -29,7 +29,7 @@ const IS_DEV = !('update_url' in chrome.runtime.getManifest());
 const log = logger;
 
 // Log immediately when script loads
-log.info('Background script loaded');
+log.info(`Background script loaded`);
 
 
 // Initialize extension on startup and install
@@ -108,7 +108,8 @@ async function initializeExtension() {
     }
     
     isInitialized = true;
-    log.info('TsPocket extension initialized successfully');
+    const manifest = chrome.runtime.getManifest();
+    log.info(`TsPocket v${manifest.version} initialized successfully`);
   } catch (error) {
     log.error('Extension initialization failed:', error);
     isInitialized = false;
@@ -121,6 +122,7 @@ async function initializeExtension() {
 function generateShortId() {
   return Math.random().toString(36).substring(2, 12);
 }
+
 
 
 
@@ -187,15 +189,49 @@ async function extractArticleContent(tab) {
   }
 }
 
+// Helper function to calculate positions for tokens
+function calculateTokenPositions(tokens) {
+  let currentPosition = 0;
+  
+  return tokens.map(token => {
+    const tokenWithPosition = { ...token };
+    const start = currentPosition;
+    
+    // Calculate content length
+    let length = 0;
+    if (token.content && Array.isArray(token.content)) {
+      token.content.forEach(item => {
+        if (item.type === 'text' || item.type === 'hashtag') {
+          length += item.content.length;
+        }
+      });
+    }
+    
+    // Add newline for paragraph
+    if (token.type === 'paragraph') {
+      length += 1; // for the newline
+    }
+    
+    const end = start + length;
+    currentPosition = end;
+    
+    tokenWithPosition.position = { start, end };
+    return tokenWithPosition;
+  });
+}
+
 // Save article to Thoughtstream
 async function saveToThoughtstream(articleData, tags = []) {
-  log.info('saveToThoughtstream called (Definitive Mode with Position Fix)');
+  log.info('saveToThoughtstream called - using /notes/top endpoint', {
+    title: articleData?.title,
+    url: articleData?.url,
+    tagCount: tags?.length || 0
+  });
 
   try {
     const noteId = generateShortId();
     const userId = (await storageService.getUserInfo()).userId;
     const timestamp = new Date().toISOString();
-    const positionValue = String(-new Date().getTime());
 
     if (!userId) {
       throw new Error('User ID not found. Please login again.');
@@ -227,14 +263,14 @@ async function saveToThoughtstream(articleData, tags = []) {
         depth: 0,
     };
 
-    const finalTokens = [firstParagraphToken, ...contentTokens];
+    const tokensWithoutPositions = [firstParagraphToken, ...contentTokens];
+    const finalTokens = calculateTokenPositions(tokensWithoutPositions);
 
-    // The DEFINITIVE PAYLOAD with the inverted position value.
+    // Payload for /notes/top endpoint - no position needed
     const noteData = {
       id: noteId,
       authorId: userId,
       tokens: finalTokens,
-      position: positionValue,
       readAll: false,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -246,14 +282,37 @@ async function saveToThoughtstream(articleData, tags = []) {
       expansionSetting: 'auto'
     };
 
-    log.info('Final, definitive note data prepared', { noteId: noteData.id, position: positionValue });
+    log.info('Note data prepared for /notes/top', { 
+      noteId: noteData.id,
+      hasTokens: !!noteData.tokens,
+      tokenCount: noteData.tokens?.length,
+      firstToken: JSON.stringify(noteData.tokens?.[0]),
+      allTokensHavePosition: noteData.tokens?.every(t => t.position && typeof t.position.start === 'number' && typeof t.position.end === 'number'),
+      userId: noteData.authorId
+    });
 
-    const response = await apiClient.post('/notes', { notes: [noteData] });
+    const response = await apiClient.post('/notes/top', { note: noteData });
 
-    // This is the CRITICAL check.
+    // Debug logging to understand response structure
+    log.info('API Response Debug', { 
+        hasResponse: !!response,
+        hasData: !!response?.data,
+        isDataArray: Array.isArray(response?.data),
+        dataLength: response?.data?.length,
+        firstId: response?.data?.[0]?.id,
+        lookingForId: noteId,
+        responseKeys: response ? Object.keys(response) : []
+    });
+
+    // Verify the note was created (response.data is still an array)
     const createdNote = response?.data?.find(note => note.id === noteId);
     if (createdNote) {
-        log.info('✅ SUCCESS: API confirmed save.', { noteId });
+        log.info('✅ SUCCESS: API confirmed save.', { 
+          noteId,
+          returnedId: createdNote.id,
+          hasPosition: !!createdNote.position,
+          position: createdNote.position 
+        });
         return { noteId, response };
     } else {
         log.error('❌ FAILURE: API did not confirm save.', { sentNoteId: noteId, responseBody: response });
@@ -708,13 +767,12 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
 
 // Save selection to Thoughtstream
 async function saveSelectionToThoughtstream(selectionData) {
-  log.info('saveSelectionToThoughtstream called');
+  log.info('saveSelectionToThoughtstream called - using /notes/top endpoint');
 
   try {
     const noteId = generateShortId();
     const userId = (await storageService.getUserInfo()).userId;
     const timestamp = new Date().toISOString();
-    const positionValue = String(-new Date().getTime());
 
     if (!userId) {
       throw new Error('User ID not found. Please login again.');
@@ -870,11 +928,13 @@ async function saveSelectionToThoughtstream(selectionData) {
       });
     }
 
+    // Add position information to all tokens
+    const finalTokens = calculateTokenPositions(tokens);
+
     const noteData = {
       id: noteId,
       authorId: userId,
-      tokens: tokens,
-      position: positionValue,
+      tokens: finalTokens,
       readAll: false,
       createdAt: timestamp,
       updatedAt: timestamp,
@@ -888,10 +948,10 @@ async function saveSelectionToThoughtstream(selectionData) {
 
     log.info('Selection note data prepared', { 
       noteId: noteData.id,
-      tokenCount: tokens.length 
+      tokenCount: finalTokens.length 
     });
 
-    const response = await apiClient.post('/notes', { notes: [noteData] });
+    const response = await apiClient.post('/notes/top', { note: noteData });
 
     const createdNote = response?.data?.find(note => note.id === noteId);
     if (createdNote) {
@@ -1149,6 +1209,12 @@ chromeApi.commands.onCommand.addListener(async (command) => {
       log.error('Keyboard shortcut save failed:', error);
     }
   }
+});
+
+// Flush logs before the service worker is terminated. Returning a promise keeps
+// the worker alive until the write completes (Chrome 110+ service-worker behavior).
+chrome.runtime.onSuspend.addListener(() => {
+  return logger.saveState();
 });
 
 // Handle Pocket import

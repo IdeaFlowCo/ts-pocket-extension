@@ -23,7 +23,7 @@ class StorageService {
           logger.error('Storage get error', { error: chrome.runtime.lastError.message });
           reject(new Error(`Storage get error: ${chrome.runtime.lastError.message}`));
         } else {
-          logger.debug('Storage retrieved', { keys: Object.keys(result) });
+          logger.log('DEBUG', 'Storage retrieved', { keys: Object.keys(result) }, 'STORAGE');
           resolve(result);
         }
       });

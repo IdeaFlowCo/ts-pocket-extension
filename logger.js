@@ -2,10 +2,17 @@
 class Logger {
   constructor() {
     this.logs = [];
-    this.maxLogs = 100;
+    this.maxLogs = 500;
     this.listeners = new Set();
     this.isDev = this.checkIsDev();
     this.debugMode = false;
+    this.logLevel = 'DEBUG'; // Default log level
+    this.isInitialized = false;
+    this.logQueue = [];
+    // Removed source cache - memory leak
+
+    // Start initialization
+    this.initialize();
   }
 
   checkIsDev() {
@@ -17,23 +24,54 @@ class Logger {
     }
   }
 
-  async checkDebugMode() {
+  async initialize() {
     try {
-      const result = await chrome.storage.local.get('debugMode');
-      this.debugMode = result.debugMode || false;
+      // Load logs from storage first
+      const stored = await chrome.storage.local.get('logs');
+      if (stored.logs && Array.isArray(stored.logs)) {
+        this.logs = stored.logs;
+      }
+
+      const storedSettings = await chrome.storage.local.get(['debugMode', 'logLevel']);
+      this.debugMode = storedSettings.debugMode || false;
+      this.logLevel = storedSettings.logLevel || 'DEBUG';
     } catch (e) {
       this.debugMode = false;
+    } finally {
+      this.isInitialized = true;
+      this.processQueue();
+    }
+  }
+
+  processQueue() {
+    while (this.logQueue.length > 0) {
+      const { level, message, data, source } = this.logQueue.shift();
+      this._log(level, message, data, source);
     }
   }
 
   log(level, message, data = {}) {
+    const source = this.getSource();
+    if (!this.isInitialized) {
+      this.logQueue.push({ level, message, data, source });
+      return;
+    }
+    this._log(level, message, data, source);
+  }
+
+  _log(level, message, data, source) {
+    if (!this.shouldLog(level)) {
+      return;
+    }
+
     const timestamp = new Date().toISOString();
+    const sanitizedData = this.sanitize(data);
     const entry = {
       timestamp,
       level,
       message,
-      data,
-      source: this.getSource()
+      data: sanitizedData,
+      source: source
     };
 
     // Only log to console in dev mode or if debug is enabled
@@ -48,21 +86,24 @@ class Logger {
       console.log(`${prefix} [${timestamp}] ${message}`, data);
     }
 
-    // Only store logs in memory during development or debug mode
-    if (this.isDev || this.debugMode) {
-      this.logs.push(entry);
-      if (this.logs.length > this.maxLogs) {
-        this.logs.shift();
-      }
+    // Always buffer entries so they can be persisted across service-worker restarts
+    this.logs.push(entry);
+    if (this.logs.length > this.maxLogs) {
+      this.logs.shift();
+    }
 
-      // Notify listeners
-      this.listeners.forEach(listener => {
-        try {
-          listener(entry);
-        } catch (e) {
-          console.error('Log listener error:', e);
-        }
-      });
+    // Notify listeners (popup, devtools, etc.)
+    this.listeners.forEach(listener => {
+      try {
+        listener(entry);
+      } catch (e) {
+        console.error('Log listener error:', e);
+      }
+    });
+
+    // Persist every 10th log (cheap; avoids excessive I/O)
+    if (this.logs.length % 10 === 0) {
+      this.saveState().catch(() => {/* swallow – best effort */});
     }
   }
 
@@ -85,6 +126,21 @@ class Logger {
   getLogs(filter = {}) {
     let logs = [...this.logs];
     
+    // Add manifest version to the logs for easy debugging
+    try {
+      const manifest = chrome.runtime.getManifest();
+      const versionLog = {
+        timestamp: new Date().toISOString(),
+        level: 'INFO',
+        message: `TsPocket Version: ${manifest.version}`,
+        data: {},
+        source: 'SYSTEM'
+      };
+      logs.unshift(versionLog);
+    } catch (e) {
+      // Manifest might not be available in all contexts
+    }
+    
     if (filter.level) {
       logs = logs.filter(log => log.level === filter.level);
     }
@@ -102,6 +158,7 @@ class Logger {
 
   clear() {
     this.logs = [];
+    chrome.storage.local.remove('logs');
   }
 
   addListener(callback) {
@@ -112,15 +169,51 @@ class Logger {
     this.listeners.delete(callback);
   }
 
+  shouldLog(level) {
+    const levels = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3 };
+    return levels[level] >= levels[this.logLevel];
+  }
+
+  sanitize(data) {
+    if (!data || typeof data !== 'object') {
+      return data;
+    }
+    const sensitiveKeys = ['token', 'secret', 'password', 'email', 'userId', 'authToken', 'refreshToken', 'idToken'];
+    const sanitized = { ...data };
+    for (const key in sanitized) {
+      if (sensitiveKeys.includes(key.toLowerCase())) {
+        sanitized[key] = '[REDACTED]';
+      }
+    }
+    return sanitized;
+  }
+
+  saveState() {
+    // Directly return the promise; caller can handle rejections if desired
+    return chrome.storage.local.set({ logs: this.logs });
+  }
+
+  /**
+   * Force-persist the current in-memory log buffer immediately.
+   * Returns the underlying promise so callers can await completion.
+   */
+  flush() {
+    return this.saveState();
+  }
+
   getSource() {
-    // Detect which script is logging
     try {
-      const stack = new Error().stack;
-      if (stack.includes('background.js')) return 'BACKGROUND';
-      if (stack.includes('content.js')) return 'CONTENT';
-      if (stack.includes('popup.js')) return 'POPUP';
-      if (stack.includes('api-client.js')) return 'API';
-      if (stack.includes('auth.js')) return 'AUTH';
+      const stackLines = new Error().stack.split('\n');
+      // Start from the 3rd line to skip getSource and the log function itself
+      for (let i = 3; i < stackLines.length; i++) {
+        const line = stackLines[i];
+        if (line.includes('background.js')) return 'BACKGROUND';
+        if (line.includes('content.js')) return 'CONTENT';
+        if (line.includes('popup.js')) return 'POPUP';
+        if (line.includes('api-client.js')) return 'API';
+        if (line.includes('auth.js')) return 'AUTH';
+        if (line.includes('storage-service.js')) return 'STORAGE';
+      }
       return 'UNKNOWN';
     } catch (e) {
       return 'UNKNOWN';
@@ -139,11 +232,6 @@ class Logger {
 
 // Create singleton instance
 const logger = new Logger();
-
-// Check debug mode on initialization
-if (typeof chrome !== 'undefined' && chrome.storage) {
-  logger.checkDebugMode();
-}
 
 // For service worker, expose via chrome.runtime
 if (typeof chrome !== 'undefined' && chrome.runtime) {
