@@ -489,13 +489,16 @@ async function handleSave(tab, tags = []) {
     
     // Store in local history with position and other metadata for updates
     const savedAt = new Date().toISOString();
-    const position = String(-new Date().getTime());
+    const position = String(-new Date().getTime()); // Our position for internal ordering
+    const thoughtstreamPosition = result.response?.data?.find(note => note.id === result.noteId)?.position; // Thoughtstream's position for API calls
+    
     await storageService.addSavedArticle({
       ...articleData,
       noteId: result.noteId,
       tags: ['pocket', ...tags], // Include default pocket tag
       savedAt: savedAt,
-      position: position,
+      position: position, // Our position (for internal use)
+      thoughtstreamPosition: thoughtstreamPosition, // Thoughtstream's position (for API calls)
       createdAt: savedAt,
       insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
     });
@@ -563,7 +566,7 @@ async function handleSave(tab, tags = []) {
 async function updateNoteWithTags(noteId, tags) {
   if (!tags || tags.length === 0) return;
   
-  log.info('Updating note with tags', { noteId, tags });
+  log.info('Updating note with tags (recreate + append)', { noteId, tags });
   
   try {
     // Get current note data from local storage
@@ -582,42 +585,57 @@ async function updateNoteWithTags(noteId, tags) {
       throw new Error('User ID not found. Please login again.');
     }
     
-    // Get existing tags from local storage
-    const existingTags = article.tags || ['pocket'];
-    
-    // Combine existing tags with new tags (avoid duplicates)
-    const allTags = [...new Set([...existingTags, ...tags])];
-    
-    // Create tokens for the updated note (matching the format used in saveToThoughtstream)
+    // Recreate the note structure exactly as in saveToThoughtstream
     const tokens = [];
     
-    // First paragraph: All tags as hashtags
-    const firstParagraphContent = allTags.flatMap(tag => ([
+    // First token: Title as plain text (if available)
+    if (article.title) {
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [{ type: 'text', content: article.title, marks: [] }],
+        depth: 0,
+      });
+    }
+    
+    // Second token: URL as clickable link
+    tokens.push(createLinkTokens(article.url));
+    
+    // Third token: Original tags (recreate existing tags structure)
+    const existingTags = article.tags || ['pocket'];
+    const originalTagsContent = existingTags.flatMap(tag => ([
         { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
         { type: 'text', content: ' ', marks: [] }
     ]));
     
     tokens.push({
-      type: 'paragraph',
-      tokenId: generateShortId(),
-      content: firstParagraphContent,
-      depth: 0
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: originalTagsContent,
+        depth: 0,
     });
     
-    // Second paragraph: URL
+    // Fourth token: NEW tags paragraph (appended at bottom)
+    const newTagsContent = tags.flatMap(tag => ([
+        { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
+        { type: 'text', content: ' ', marks: [] }
+    ]));
+    
     tokens.push({
-      type: 'paragraph',
-      tokenId: generateShortId(),
-      content: [{ type: 'text', marks: [], content: article.url }],
-      depth: 0
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: newTagsContent,
+        depth: 0,
     });
     
-    // Prepare the complete note update payload (matching the create format)
+    const finalTokens = calculateTokenPositions(tokens);
+    
+    // Use same update structure as saveToThoughtstream
     const updateData = {
       id: noteId,
       authorId: userId,
-      tokens: tokens,
-      position: article.position || String(-new Date(article.savedAt).getTime()), // Keep original position
+      tokens: finalTokens,
+      position: article.thoughtstreamPosition, // Use Thoughtstream's position for API call
       readAll: false,
       updatedAt: timestamp,
       deletedAt: null,
@@ -628,20 +646,40 @@ async function updateNoteWithTags(noteId, tags) {
       expansionSetting: 'auto'
     };
     
-    log.info('Sending token-based update to API', { noteId, newTagCount: allTags.length });
+    log.info('Recreating note structure + appending new tags', { 
+      noteId, 
+      originalTags: existingTags.length,
+      newTags: tags.length,
+      totalTokens: finalTokens.length
+    });
     
-    // Update the note
+    // Update the note using upsert endpoint (wrap array in notes object)
     const response = await apiClient.post('/notes', { notes: [updateData] });
     
-    // Check if we got a successful response
-    const updatedNote = response?.data?.find(note => note.id === noteId);
+    // DEBUG: Log the exact response we got
+    log.info('UPDATE RESPONSE DEBUG', {
+      response: JSON.stringify(response, null, 2),
+      hasData: !!response?.data,
+      hasError: !!response?.error,
+      dataType: typeof response?.data,
+      dataIsArray: Array.isArray(response?.data)
+    });
+    
+    // Check if we got a successful response from upsert
+    const updatedNote = response?.data?.find?.(note => note.id === noteId) || response?.data?.[0];
     if (!updatedNote) {
+      log.error('UPDATE FAILED - No updated note in response', {
+        responseKeys: Object.keys(response || {}),
+        dataKeys: response?.data ? Object.keys(response.data) : null
+      });
       throw new Error('API did not confirm update');
     }
     
-    log.info('✅ Note update confirmed', { noteId });
+    log.info('✅ Note recreated with appended tags', { noteId });
     
-    // Update local history with new tags
+    // Update local history with combined tags
+    const allTags = [...new Set([...existingTags, ...tags])];
+    
     savedArticles[articleIndex] = {
       ...article,
       tags: allTags,
@@ -651,7 +689,7 @@ async function updateNoteWithTags(noteId, tags) {
     
     return response;
   } catch (error) {
-    log.error('Failed to update note with tags', { 
+    log.error('Failed to recreate note with appended tags', { 
       noteId, 
       tags,
       error: error.message,
