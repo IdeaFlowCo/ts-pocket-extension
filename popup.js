@@ -787,8 +787,9 @@ async function handleQuickSave() {
       postSaveTags.length = 0; // Clear the array
       renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
       
-      // Hide save button, show post-save options
+      // Hide save button and pre-save section, show post-save options
       quickSaveBtn.classList.add('hidden');
+      document.querySelector('.pre-save-tags').classList.add('hidden');
       postSaveOptions.classList.remove('hidden');
         
       loadRecentSaves(); // Refresh recent saves
