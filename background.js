@@ -885,7 +885,17 @@ async function saveSelectionToThoughtstream(selectionData) {
     // Create tokens array
     const tokens = [];
     
-    // First paragraph: URL as link
+    // First token: Title as plain text (if available)
+    if (selectionData.title) {
+      tokens.push({
+        type: 'paragraph',
+        tokenId: generateShortId(),
+        content: [{ type: 'text', content: selectionData.title, marks: [] }],
+        depth: 0,
+      });
+    }
+    
+    // Second token: URL as clickable link
     tokens.push(createLinkTokens(selectionData.url));
     
     // Second paragraph: Empty line 
