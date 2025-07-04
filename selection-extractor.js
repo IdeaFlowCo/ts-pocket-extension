@@ -171,9 +171,14 @@ document.addEventListener('contextmenu', (e) => {
   
   if (selectionData) {
     // Store the selection data temporarily
-    chrome.runtime.sendMessage({
-      action: 'storeSelectionData',
-      data: selectionData
-    });
+    try {
+      chrome.runtime.sendMessage({
+        action: 'storeSelectionData',
+        data: selectionData
+      });
+    } catch (error) {
+      // Extension context invalidated - this is normal when extension reloads
+      console.log('Extension context invalidated, ignoring selection data');
+    }
   }
 });
