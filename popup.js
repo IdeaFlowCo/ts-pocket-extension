@@ -36,6 +36,7 @@ const confirmModal = document.getElementById('confirmModal');
 const confirmMessage = document.getElementById('confirmMessage');
 const confirmOkBtn = document.getElementById('confirmOkBtn');
 const confirmCancelBtn = document.getElementById('confirmCancelBtn');
+const changeShortcutBtn = document.getElementById('changeShortcutBtn');
 
 // Autocomplete elements
 const preSaveTagsDropdown = document.getElementById('preSaveTagsDropdown');
@@ -634,6 +635,11 @@ function setupEventListeners() {
     });
   });
 
+  // Change shortcut button
+  changeShortcutBtn.addEventListener('click', () => {
+    chrome.tabs.create({ url: 'chrome://extensions/shortcuts' });
+  });
+
   // Modal buttons
   confirmCancelBtn.addEventListener('click', () => {
     confirmModal.classList.add('hidden');
@@ -878,6 +884,7 @@ function showView(view) {
   if (view === 'settings') {
     mainView.classList.add('hidden');
     settingsView.classList.remove('hidden');
+    updateShortcutDisplay();
   } else {
     settingsView.classList.add('hidden');
     mainView.classList.remove('hidden');
@@ -926,6 +933,54 @@ function showStatus(message, type) {
       saveStatus.classList.add('hidden');
     }, 300); // Wait for fade out transition
   }, 2500);
+}
+
+// Update shortcut display
+async function updateShortcutDisplay() {
+  const shortcutSpan = document.getElementById('currentShortcut');
+  if (!shortcutSpan) return;
+
+  const isMac = /Mac|iMac|iPhone|iPod|iPad/i.test(navigator.platform);
+
+  const keyTranslations = {
+    mac: {
+      '⌘': 'Command',
+      '⇧': 'Shift',
+      '⌃': 'Control',
+      '⌥': 'Option',
+      'Command': 'Command',
+      'Shift': 'Shift',
+      'Ctrl': 'Control',
+      'Alt': 'Option',
+      'MacCtrl': 'Control',
+    },
+    other: {
+      'Ctrl': 'Ctrl',
+      'Alt': 'Alt',
+      'Shift': 'Shift',
+      'Command': 'Command', // For completeness
+    }
+  };
+
+  const currentTranslations = isMac ? keyTranslations.mac : keyTranslations.other;
+
+  try {
+    const commands = await chrome.commands.getAll();
+    const command = commands.find(cmd => cmd.name === '_execute_action');
+    if (command && command.shortcut) {
+      const shortcut = command.shortcut;
+      // Regex to split by modifiers and the final key. Handles concatenated symbols on Mac.
+      const parts = shortcut.match(/([⌘⇧⌃⌥]|MacCtrl|Command|Shift|Ctrl|Alt|Option|\w)/g) || [];
+      const translatedParts = parts.map(part => currentTranslations[part] || part);
+      const translated = translatedParts.join('+');
+      shortcutSpan.textContent = `${shortcut} (${translated})`;
+    } else {
+      shortcutSpan.textContent = 'Not set';
+    }
+  } catch (error) {
+    logger.error('Failed to get commands:', { error: error.message });
+    shortcutSpan.textContent = 'Error loading shortcut';
+  }
 }
 
 // Utility functions

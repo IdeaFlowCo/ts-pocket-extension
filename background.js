@@ -38,9 +38,17 @@ chromeApi.runtime.onStartup.addListener(() => {
   ensureInitialized();
 });
 
-chromeApi.runtime.onInstalled.addListener((details) => {
+chromeApi.runtime.onInstalled.addListener(async (details) => {
   log.info('Extension installed/updated', { reason: details.reason });
   ensureInitialized();
+
+  if (details.reason === 'update' || details.reason === 'chrome_update' || details.reason === 'install') {
+    const session = await chrome.storage.session.get('reopenPopupAfterReload');
+    if (session.reopenPopupAfterReload) {
+      await chrome.storage.session.remove('reopenPopupAfterReload');
+      await chromeApi.action.openPopup();
+    }
+  }
 });
 
 // Also initialize immediately
@@ -54,6 +62,19 @@ function ensureInitialized() {
   }
   return initializationPromise;
 }
+
+// After a reload, check if we need to reopen the popup.
+(async () => {
+  try {
+    const session = await chrome.storage.session.get('reopenPopupAfterReload');
+    if (session.reopenPopupAfterReload) {
+      await chrome.storage.session.remove('reopenPopupAfterReload');
+      await chromeApi.action.openPopup();
+    }
+  } catch (error) {
+    logger.error('Failed to check for post-reload action', { error: error.message });
+  }
+})();
 
 async function initializeExtension() {
   if (isInitialized) {
@@ -1373,18 +1394,6 @@ chromeApi.contextMenus.onClicked.addListener(async (info, tab) => {
           log.error('Selection save failed:', error);
         });
       }
-    }
-  }
-});
-
-// Keyboard shortcut handler
-chromeApi.commands.onCommand.addListener(async (command) => {
-  if (command === '_execute_action') {
-    try {
-      const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
-      await handleSave(tabs[0]);
-    } catch (error) {
-      log.error('Keyboard shortcut save failed:', error);
     }
   }
 });

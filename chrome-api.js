@@ -173,6 +173,10 @@ export const action = {
   async setIcon(details) {
     return promisifyChrome('action', 'setIcon', details);
   },
+
+  async openPopup() {
+    return promisifyChrome('action', 'openPopup');
+  },
   
   get onClicked() {
     return chrome.action?.onClicked;
