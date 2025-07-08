@@ -1505,4 +1505,4 @@ function setActiveItem(items) {
   items.forEach((item, index) => {
     item.classList.toggle('highlighted', index === currentFocus);
   });
-}
+};

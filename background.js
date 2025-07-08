@@ -1104,24 +1104,6 @@ async function saveSelectionToThoughtstream(selectionData) {
     const createdNote = response?.data?.find(note => note.id === noteId);
     if (createdNote) {
         log.info('✅ SUCCESS: Selection saved.', { noteId });
-        
-        // Store in local history like articles
-        const savedAt = new Date().toISOString();
-        const position = String(-new Date().getTime());
-        await storageService.addSavedArticle({
-          title: selectionData.title || 'Text Selection',
-          url: selectionData.url,
-          description: selectionData.selectedText,
-          noteId: noteId,
-          tags: ['highlight'],
-          savedAt: savedAt,
-          position: position,
-          createdAt: savedAt,
-          insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
-          isHighlight: true,
-          hasLinks: !!(selectionData.links && selectionData.links.length > 0)
-        });
-        
         return { noteId, response };
     } else {
         log.error('❌ FAILURE: Selection save not confirmed.', { sentNoteId: noteId });
