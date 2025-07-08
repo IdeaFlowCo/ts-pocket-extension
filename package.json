@@ -1,0 +1,27 @@
+{
+  "name": "ts-pocket-extension",
+  "version": "1.0.0",
+  "description": "A powerful Chrome extension that provides a Pocket-like experience for saving articles, web pages, and text selections to Thoughtstream/Ideaflow.",
+  "main": "api-client.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1",
+    "build": "node esbuild.mjs"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/IdeaFlowCo/ts-pocket-extension.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "bugs": {
+    "url": "https://github.com/IdeaFlowCo/ts-pocket-extension/issues"
+  },
+  "homepage": "https://github.com/IdeaFlowCo/ts-pocket-extension#readme",
+  "devDependencies": {
+    "esbuild": "^0.25.6",
+    "fs-extra": "^11.3.0",
+    "glob": "^11.0.3"
+  }
+}

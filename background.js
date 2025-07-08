@@ -53,18 +53,32 @@ chromeApi.runtime.onInstalled.addListener(async (details) => {
 
 // Also initialize immediately
 log.info('Initializing extension...');
-ensureInitialized();
+(async () => {
+  await ensureInitialized();
+})();
 
 // Handle keyboard shortcut commands
 chromeApi.commands.onCommand.addListener(async (command) => {
-  log.info('Keyboard command received:', command);
-  
-  if (command === '_execute_action') {
-    try {
-      await chromeApi.action.openPopup();
-    } catch (error) {
-      log.error('Failed to open popup from keyboard shortcut:', error);
+  log.info(`Command received: ${command}`);
+
+  if (command === 'quick-save') {
+    const [tab] = await chromeApi.tabs.query({ active: true, currentWindow: true });
+    if (!tab) {
+      log.warn('No active tab found for quick-save.');
+      return;
     }
+
+    try {
+      log.info('Executing quick-save command', { tabId: tab.id });
+      await handleSave(tab, []);
+      log.info('Quick-save successful.');
+    } catch (error) {
+      log.error('Quick-save failed, but will still open popup.', { error: error.message });
+    }
+
+    // Always open the popup after the save attempt.
+    log.info('Opening popup after quick-save.');
+    await chromeApi.action.openPopup();
   }
 });
 

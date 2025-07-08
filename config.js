@@ -62,10 +62,5 @@ Object.freeze(CONFIG.storageKeys);
 Object.freeze(CONFIG.extraction);
 Object.freeze(CONFIG.firecrawl);
 
-// Export for use in other modules
-if (typeof module !== 'undefined' && module.exports) {
-  module.exports = CONFIG;
-}
-
 // ES6 module export
 export default CONFIG;

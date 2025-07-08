@@ -4,6 +4,7 @@ Thumbs.db
 
 # Build artifacts
 build/
+dist/
 *.zip
 
 # Design assets (keep locally only)
@@ -38,3 +39,4 @@ node_modules/
 scratchpad.md
 *_scratchpad.md
 *_discovery.diff
+LESSONS_LEARNED.md

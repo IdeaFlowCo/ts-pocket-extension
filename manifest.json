@@ -50,12 +50,12 @@
     }
   ],
   "commands": {
-    "_execute_action": {
+    "quick-save": {
       "suggested_key": {
         "default": "Ctrl+Shift+P",
         "mac": "Command+Shift+P"
       },
-      "description": "Save to IdeaPocket"
+      "description": "Quick Save Page and Open"
     }
   }
 }

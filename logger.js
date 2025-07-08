@@ -11,8 +11,7 @@ class Logger {
     this.logQueue = [];
     // Removed source cache - memory leak
 
-    // Start initialization
-    this.initialize();
+    // Defer initialization to be called explicitly
   }
 
   checkIsDev() {
@@ -238,5 +237,10 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
   // Make logger available to other scripts
   globalThis.__tspocket_logger = logger;
 }
+
+// Initialize the logger asynchronously
+(async () => {
+  await logger.initialize();
+})();
 
 export default logger;
