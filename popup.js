@@ -257,7 +257,11 @@ function displayRecentSaves(articles) {
   const filtered = searchQuery ? searchArticles(searchQuery) : sortedArticles;
   
   if (filtered.length === 0) {
-    recentList.innerHTML = '<div class="loading">No results in recently saved</div>';
+    // Show different message based on whether we have saved articles or not
+    const message = allSavedArticles.length > 0 
+      ? 'No results in recently saved' 
+      : 'No saved articles yet';
+    recentList.innerHTML = `<div class="loading">${message}</div>`;
     return;
   }
   
