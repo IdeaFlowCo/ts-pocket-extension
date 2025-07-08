@@ -12,7 +12,7 @@ This is a Chrome Extension using Manifest V3 with:
 - **Service Worker** (`background.js`) - Handles API calls, authentication, and extension lifecycle
 - **Content Script** (`content.js`) - Extracts article content from web pages  
 - **Popup UI** (`popup.html/js/css`) - User interface for saving and managing articles
-- **No build system** - Pure JavaScript loaded directly by Chrome
+- **esbuild** - A fast bundler is used to combine JavaScript modules into a single file (`dist/background.js`) for the extension.
 
 Key modules:
 - `auth.js` - OAuth2 PKCE authentication with Auth0
@@ -25,19 +25,17 @@ Key modules:
 
 ## Development Commands
 
-**To develop/test:**
-1. Open `chrome://extensions/`
-2. Enable Developer mode
-3. Click "Load unpacked" and select this directory
-4. No build/compile step required - changes take effect on extension reload
+**Development Workflow:**
+1.  Run the build script: `npm run build`. This bundles all JavaScript into the `dist/` directory.
+2.  Open `chrome://extensions/`, enable Developer Mode.
+3.  Click "Load unpacked" and select the **`dist/`** directory.
+4.  After changing any source file, re-run `npm run build` and then click the "reload" button for the extension in `chrome://extensions`.
 
-**Production Build:**
-```bash
-./build-production.sh
-```
-- Creates production build in `build/` directory
-- Generates `ideapocket-production.zip` for Chrome Web Store
-- This is ONLY for production releases, not for local development
+**Production Release Workflow:**
+1.  Run the production build script: `./build-production.sh`.
+2.  This script cleans the `dist/` directory, runs the development build, copies all necessary assets into `dist/`, and creates `ideapocket-production.zip`.
+3.  Test the final build by loading the `dist/` directory as an unpacked extension.
+4.  Upload `ideapocket-production.zip` to the Chrome Web Store.
 
 **Debugging:**
 - Enable debug mode: Open popup → Settings → Toggle "Debug Mode"
