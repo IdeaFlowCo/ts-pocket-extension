@@ -494,6 +494,12 @@ function setupEventListeners() {
     }
   });
   
+  // Close post-save button
+  const closePostSaveBtn = document.getElementById('closePostSaveBtn');
+  closePostSaveBtn.addEventListener('click', () => {
+    resetToInitialState();
+  });
+  
   // Add tags button
   addTagsBtn.addEventListener('click', async () => {
     // First, handle any unpilled text in the input
@@ -880,6 +886,29 @@ async function handleQuickSave() {
     quickSaveBtn.disabled = false;
     quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Thoughtstream</span>';
   }
+}
+
+// Reset to initial state (dismiss post-save view)
+function resetToInitialState() {
+  // Hide post-save options
+  postSaveOptions.classList.add('hidden');
+  
+  // Show save button and pre-save section
+  quickSaveBtn.classList.remove('hidden');
+  document.querySelector('.pre-save-tags').classList.remove('hidden');
+  
+  // Clear post-save tags
+  postSaveTags = [];
+  renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+  
+  // Clear tag input
+  tagsInput.value = '';
+  
+  // Restore save button text
+  quickSaveBtn.innerHTML = '<span class="btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></span><span class="btn-text">Save to Thoughtstream</span>';
+  
+  // Update tooltip with current shortcut
+  updateSaveButtonTooltip();
 }
 
 // Handle auth
