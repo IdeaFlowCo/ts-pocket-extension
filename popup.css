@@ -180,38 +180,11 @@ body {
 
 /* Post-Save Options */
 .post-save-options {
-  position: relative;
   padding: 16px;
   background: #e8f5e9;
   border-radius: 8px;
   margin: 16px;
   animation: fadeIn 0.3s ease-out;
-}
-
-.close-post-save-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  background: transparent;
-  border: none;
-  font-size: 20px;
-  color: #2e7d32;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
-  opacity: 0.6;
-  padding: 0;
-  line-height: 1;
-}
-
-.close-post-save-btn:hover {
-  opacity: 1;
-  background: rgba(46, 125, 50, 0.1);
 }
 
 .saved-message {
