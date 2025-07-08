@@ -286,7 +286,7 @@ body {
 
 .tags-input {
   flex: 1;
-  padding: 8px 52px 8px 12px; /* Reduced right padding for shorter button */
+  padding: 8px 60px 8px 12px; /* Adjusted right padding for both buttons */
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 14px;
@@ -300,7 +300,7 @@ body {
 
 .clear-tags-btn {
   position: absolute;
-  right: 40px; /* Make room for shorter Add button in post-save section */
+  right: 50px; /* Make room for shorter Add button in post-save section */
   top: 50%;
   transform: translateY(-50%);
   background: none;

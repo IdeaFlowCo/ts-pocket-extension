@@ -533,19 +533,19 @@ function setupEventListeners() {
       
       if (response.success) {
         showStatus('Tags added!', 'success');
-        setTimeout(() => {
-          window.close();
-        }, 1000);
+        // Reset button state after success
+        addTagsBtn.disabled = false;
+        addTagsBtn.textContent = 'Add';
       } else {
         showStatus(response.error || 'Failed to add tags', 'error');
         addTagsBtn.disabled = false;
-        addTagsBtn.textContent = 'Add Tags';
+        addTagsBtn.textContent = 'Add';
       }
     } catch (error) {
       logger.error('Failed to update tags:', { error: error.message });
       showStatus('Failed to add tags', 'error');
       addTagsBtn.disabled = false;
-      addTagsBtn.textContent = 'Add Tags';
+      addTagsBtn.textContent = 'Add';
     }
   });
   
