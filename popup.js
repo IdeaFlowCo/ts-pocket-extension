@@ -536,6 +536,10 @@ function setupEventListeners() {
         // Clear the tag pills after successful addition to avoid duplicates
         postSaveTags = [];
         renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+        // Hide clear button since we cleared everything
+        if (tagsInput.value.trim() === '') {
+          clearTagsBtn.classList.add('hidden');
+        }
         // Reset button state after success
         addTagsBtn.disabled = false;
         addTagsBtn.textContent = 'Add';
@@ -856,6 +860,7 @@ async function handleQuickSave() {
       tagsInput.value = '';
       postSaveTags.length = 0; // Clear the array
       renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+      clearTagsBtn.classList.add('hidden'); // Hide clear button since no tags
       
       // Hide save button and pre-save section, show post-save options
       quickSaveBtn.classList.add('hidden');
@@ -1143,6 +1148,10 @@ function removePreSaveTag(tag) {
 
 function removePostSaveTag(tag) {
   removeTag(postSaveTags, tagsPills, tag, removePostSaveTag);
+  // Hide clear button if no tags and no text
+  if (postSaveTags.length === 0 && tagsInput.value.trim() === '') {
+    clearTagsBtn.classList.add('hidden');
+  }
 }
 
 function getTimeAgo(date) {
