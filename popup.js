@@ -28,9 +28,6 @@ const clearPreSaveTagsBtn = document.getElementById('clearPreSaveTagsBtn');
 const clearTagsBtn = document.getElementById('clearTagsBtn');
 const preSaveTagsPills = document.getElementById('preSaveTagsPills');
 const tagsPills = document.getElementById('tagsPills');
-const importZipFile = document.getElementById('importZipFile');
-const importFolder = document.getElementById('importFolder');
-const importProgress = document.getElementById('importProgress');
 const deleteAllBtn = document.getElementById('deleteAllBtn');
 const confirmModal = document.getElementById('confirmModal');
 const confirmMessage = document.getElementById('confirmMessage');
@@ -38,10 +35,10 @@ const confirmOkBtn = document.getElementById('confirmOkBtn');
 const confirmCancelBtn = document.getElementById('confirmCancelBtn');
 const changeShortcutBtn = document.getElementById('changeShortcutBtn');
 const importBackBtn = document.getElementById('importBackBtn');
-const importMainBtn = document.getElementById('importMainBtn');
-const importMainFolderLink = document.getElementById('importMainFolderLink');
-const importMainProgress = document.getElementById('importMainProgress');
 const importSettingsBtn = document.getElementById('importSettingsBtn');
+const importFileBtn = document.getElementById('importFileBtn');
+const importFileInput = document.getElementById('importFileInput');
+const importStatus = document.getElementById('importStatus');
 
 // Autocomplete elements
 const preSaveTagsDropdown = document.getElementById('preSaveTagsDropdown');
@@ -83,6 +80,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   
   // Set up event listeners
   setupEventListeners();
+
+  // Check for and display ongoing import status
+  checkImportStatus();
 });
 
 // Check authentication status
@@ -178,6 +178,23 @@ async function loadRecentSaves() {
 function searchArticles(query) {
   if (!query.trim()) {
     return allSavedArticles;
+  }
+  
+  // For single character queries, use basic search to avoid Fuse.js minMatchCharLength limit
+  if (query.length === 1) {
+    logger.debug('Using basic search for single character', { query });
+    const searchTerm = query.toLowerCase();
+    return allSavedArticles.filter(article => {
+      const searchableText = [
+        article.title || '',
+        article.description || '',
+        article.content || '',
+        article.domain || '',
+        ...(article.tags || [])
+      ].join(' ').toLowerCase();
+      
+      return searchableText.includes(searchTerm);
+    });
   }
   
   // Use Fuse.js for fuzzy search if available
@@ -446,15 +463,9 @@ function setupEventListeners() {
   // Import view navigation
   importBackBtn.addEventListener('click', () => showView('main'));
   
-  // Import main button - trigger file picker
-  importMainBtn.addEventListener('click', () => {
-    importZipFile.click();
-  });
-  
-  // Import folder link
-  importMainFolderLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    importFolder.click();
+  // Import button - trigger file picker
+  importFileBtn.addEventListener('click', () => {
+    importFileInput.click();
   });
   
   // Auth button
@@ -639,8 +650,15 @@ function setupEventListeners() {
   importSettingsBtn.addEventListener('click', () => {
     showView('import');
   });
-  importZipFile.addEventListener('change', handlePocketImport);
-  importFolder.addEventListener('change', handlePocketFolderImport);
+  importFileInput.addEventListener('change', handleFileImport);
+
+  // Listen for storage changes to update import status in real-time
+  chrome.storage.onChanged.addListener((changes, namespace) => {
+    if (namespace === 'local' && changes.pocketImportStatus) {
+      const newStatus = changes.pocketImportStatus.newValue;
+      updateImportStatus(newStatus);
+    }
+  });
   
   // Delete all button
   deleteAllBtn.addEventListener('click', () => {
@@ -1164,6 +1182,7 @@ function parsePocketCSV(csvContent) {
     articles.push(processedArticle);
   }
   
+  logger.info('parsePocketCSV completed', { articleCount: articles.length });
   return articles;
 }
 
@@ -1192,7 +1211,10 @@ function parseCSVLine(line) {
 
 // Extract ZIP file and parse CSV
 async function extractZipAndParse(zipFile) {
-  const zip = await JSZip.loadAsync(zipFile);
+  const zip = await window.JSZip.loadAsync(zipFile);
+  
+  // Debug: List all files in ZIP
+  logger.info('ZIP files found:', { files: Object.keys(zip.files) });
   
   // Look for part_000000.csv (could be in root or in pocket/ folder)
   let csvFile = zip.file('part_000000.csv');
@@ -1204,113 +1226,121 @@ async function extractZipAndParse(zipFile) {
     throw new Error('Could not find part_000000.csv in ZIP file');
   }
   
+  logger.info('Found CSV file, extracting content');
   const csvContent = await csvFile.async('string');
+  logger.info('CSV content length:', { length: csvContent.length });
+  
   return parsePocketCSV(csvContent);
 }
 
-// Handle Pocket import from ZIP file
-async function handlePocketImport(event) {
+// Handle Pocket import from a single file input
+async function handleFileImport(event) {
   const file = event.target.files[0];
   if (!file) return;
-  
-  if (!isAuthenticated) {
-    showImportStatus('Please login first', 'success');
-    return;
-  }
-  
-  try {
-    const articles = await extractZipAndParse(file);
-    await processImportedArticles(articles);
-  } catch (error) {
-    showImportStatus(error.message || 'Failed to import ZIP file', 'error');
-  }
-  
-  // Reset file input
-  event.target.value = '';
-}
 
-// Handle Pocket import from folder
-async function handlePocketFolderImport(event) {
-  const files = event.target.files;
-  if (!files || files.length === 0) return;
-  
   if (!isAuthenticated) {
-    showImportStatus('Please login first', 'success');
+    showImmediateImportStatus('Please login first to import articles.', 'error');
     return;
   }
-  
+
+  showImmediateImportStatus(`Processing ${file.name}...`, 'info');
+
   try {
-    // Find part_000000.csv in the selected files
-    let csvFile = null;
-    for (let i = 0; i < files.length; i++) {
-      if (files[i].name === 'part_000000.csv') {
-        csvFile = files[i];
-        break;
-      }
+    let articles;
+    if (file.name.endsWith('.zip')) {
+      articles = await extractZipAndParse(file);
+    } else if (file.name.endsWith('.csv')) {
+      const csvContent = await file.text();
+      articles = parsePocketCSV(csvContent);
+    } else {
+      throw new Error('Invalid file type. Please select a .zip or .csv file.');
     }
     
-    if (!csvFile) {
-      showImportStatus('Could not find part_000000.csv in the selected folder', 'error');
-      return;
-    }
-    
-    const content = await csvFile.text();
-    const articles = parsePocketCSV(content);
-    await processImportedArticles(articles);
+    // This just kicks off the process. The UI will update via storage events.
+    chrome.runtime.sendMessage({
+      action: 'importPocket',
+      articles: articles
+    });
+
   } catch (error) {
-    showImportStatus(error.message || 'Failed to import folder', 'error');
+    logger.error('File import failed', { error: error.message, fileName: file.name });
+    showImmediateImportStatus(error.message || 'Failed to process the import file.', 'error');
+  } finally {
+    // Reset file input to allow re-selection of the same file
+    event.target.value = '';
   }
-  
-  // Reset file input
-  event.target.value = '';
 }
 
-// Process imported articles (common logic)
-async function processImportedArticles(articles) {
-  if (articles.length === 0) {
-    showImportStatus('No articles found in export', 'error');
+// This function is no longer needed as the background script handles the import process
+// and the UI is updated via storage events.
+
+// Show an immediate import status message in the UI
+function showImmediateImportStatus(message, type) {
+  if (!importStatus) {
+    logger.error('Import status element not found. Fallback to alert.');
+    alert(`Import Status: ${message}`);
     return;
   }
-  
-  showImportStatus(`Found ${articles.length} articles. Importing...`, '');
-  
-  // Send to background for processing
-  const response = await chromeApi.runtime.sendMessage({
-    action: 'importPocket',
-    articles: articles
-  });
-  
-  if (response.success) {
-    showImportStatus(
-      `Successfully imported ${response.imported} of ${response.total} articles`, 
-      'success'
-    );
-    loadRecentSaves(); // Refresh the list
-  } else {
-    showImportStatus(response.error || 'Import failed', 'error');
-  }
-}
 
-// Show import status
-function showImportStatus(message, type) {
-  // Update both progress elements
-  const progressElements = [importProgress, importMainProgress];
-  
-  progressElements.forEach(element => {
-    element.textContent = message;
-    element.classList.remove('hidden', 'success', 'error');
-    if (type) {
-      element.classList.add(type);
-    }
-  });
-  
+  importStatus.textContent = message;
+  importStatus.className = 'import-progress'; // Reset classes
+  importStatus.classList.add(type);
+  importStatus.classList.remove('hidden');
+
+  // Automatically hide the message after a delay for success/error
   if (type === 'success' || type === 'error') {
     setTimeout(() => {
-      progressElements.forEach(element => {
-        element.classList.add('hidden');
-      });
+      importStatus.classList.add('hidden');
     }, 5000);
   }
+}
+
+// Check and display the current import status from storage
+async function checkImportStatus() {
+  const data = await storageService.get('pocketImportStatus');
+  if (data && data.pocketImportStatus) {
+    updateImportStatus(data.pocketImportStatus);
+  }
+}
+
+// Update the import status UI based on the data from storage
+function updateImportStatus(status) {
+  if (!importStatus) {
+    logger.error('Import status element not found.');
+    return;
+  }
+  if (!status) {
+    importStatus.classList.add('hidden');
+    return;
+  }
+
+  let message = '';
+  let type = 'info';
+
+  switch (status.status) {
+    case 'running':
+      message = `Importing... (${status.imported}/${status.total})`;
+      break;
+    case 'complete':
+      message = `Import complete! Imported: ${status.imported}, Failed: ${status.failed}.`;
+      type = 'success';
+      loadRecentSaves(); // Refresh the list
+      // Clear the status from storage after a delay
+      setTimeout(() => {
+        chrome.storage.local.remove('pocketImportStatus');
+        importStatus.classList.add('hidden');
+      }, 5000);
+      break;
+    case 'error':
+      message = `Import failed: ${status.error}`;
+      type = 'error';
+      break;
+  }
+
+  importStatus.textContent = message;
+  importStatus.className = 'import-progress'; // Reset classes
+  importStatus.classList.add(type);
+  importStatus.classList.remove('hidden');
 }
 
 function showConfirmation(message, onConfirm) {
