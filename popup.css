@@ -259,7 +259,7 @@ body {
 
 .tags-input {
   flex: 1;
-  padding: 8px 72px 8px 12px; /* Increased right padding for both buttons */
+  padding: 8px 52px 8px 12px; /* Reduced right padding for shorter button */
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 14px;
@@ -273,7 +273,7 @@ body {
 
 .clear-tags-btn {
   position: absolute;
-  right: 60px; /* Make room for Add button in post-save section */
+  right: 40px; /* Make room for shorter Add button in post-save section */
   top: 50%;
   transform: translateY(-50%);
   background: none;
@@ -294,6 +294,16 @@ body {
 /* Pre-save clear button positioning (no Add button) */
 .pre-save-tags .clear-tags-btn {
   right: 8px; /* No Add button, so position at edge */
+}
+
+/* Special positioning for input tooltips */
+.tags-input-container .tooltip {
+  flex: 1;
+  display: flex;
+}
+
+.tags-input-container .tooltip .tags-input {
+  width: 100%;
 }
 
 .clear-tags-btn:hover {
@@ -1076,7 +1086,7 @@ body {
 .tooltip-text {
   visibility: hidden;
   width: max-content;
-  max-width: 200px;
+  max-width: 250px;
   background-color: #333;
   color: #fff;
   text-align: center;
