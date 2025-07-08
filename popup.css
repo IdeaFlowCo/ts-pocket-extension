@@ -327,6 +327,8 @@ body {
 .tags-input-container .tooltip {
   flex: 1;
   display: flex;
+  position: relative;
+  z-index: 100; /* Ensure tooltip container has proper stacking context */
 }
 
 .tags-input-container .tooltip .tags-input {
@@ -338,6 +340,7 @@ body {
   bottom: auto;
   top: 100%;
   margin-top: 5px;
+  z-index: 10000; /* Higher than any other element */
 }
 
 .pre-save-tags .tooltip .tooltip-text::after {
