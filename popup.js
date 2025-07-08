@@ -78,6 +78,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Load available hashtags for autocomplete
   await loadAvailableHashtags();
   
+  // Update save button tooltip with current shortcut
+  await updateSaveButtonTooltip();
+  
   // Set up event listeners
   setupEventListeners();
 
@@ -295,12 +298,18 @@ function displayRecentSaves(articles) {
         ${displayContent}
         ${tags}
         <div class="recent-item-time">${escapeHtml(timeAgo)}</div>
-        <button class="open-note-btn" data-note-id="${escapeHtml(articleId)}" title="Open in Thoughtstream">
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="14" height="14">
-            <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
-          </svg>
-        </button>
-        <button class="delete-btn" data-note-id="${escapeHtml(articleId)}" title="Delete">×</button>
+        <div class="tooltip">
+          <button class="open-note-btn" data-note-id="${escapeHtml(articleId)}">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="14" height="14">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
+            </svg>
+          </button>
+          <span class="tooltip-text">Open in My Thoughtstream</span>
+        </div>
+        <div class="tooltip">
+          <button class="delete-btn" data-note-id="${escapeHtml(articleId)}">×</button>
+          <span class="tooltip-text">Delete Article</span>
+        </div>
       </div>
     `;
   }).join('');
@@ -332,11 +341,12 @@ function setupEventListeners() {
     }
     
     // Handle delete button clicks
-    if (e.target.classList.contains('delete-btn')) {
+    if (e.target.closest('.delete-btn')) {
       e.stopPropagation();
       e.preventDefault();
       
-      const noteId = e.target.dataset.noteId;
+      const btn = e.target.closest('.delete-btn');
+      const noteId = btn.dataset.noteId;
       if (!noteId || noteId === 'undefined') {
         showStatus('Cannot delete: Article ID not found', 'error');
         return;
@@ -1026,6 +1036,29 @@ async function updateShortcutDisplay() {
   } catch (error) {
     logger.error('Failed to get commands:', { error: error.message });
     shortcutSpan.textContent = 'Error loading shortcut';
+  }
+}
+
+// Update save button tooltip with current shortcut
+async function updateSaveButtonTooltip() {
+  const tooltipSpan = document.getElementById('saveButtonTooltip');
+  if (!tooltipSpan) return;
+
+  const isMac = /Mac|iMac|iPhone|iPod|iPad/i.test(navigator.platform);
+
+  try {
+    const commands = await chrome.commands.getAll();
+    const command = commands.find(cmd => cmd.name === '_execute_action');
+    if (command && command.shortcut) {
+      const shortcut = command.shortcut;
+      // For tooltip, show a cleaner version - just the shortcut without translation
+      tooltipSpan.textContent = `Shortcut: ${shortcut}`;
+    } else {
+      tooltipSpan.textContent = 'No shortcut set';
+    }
+  } catch (error) {
+    logger.error('Failed to get commands for tooltip:', { error: error.message });
+    tooltipSpan.textContent = 'Save to Thoughtstream';
   }
 }
 
