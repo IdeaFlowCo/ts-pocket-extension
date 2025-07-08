@@ -1419,79 +1419,106 @@ chrome.runtime.onSuspend.addListener(() => {
 
 // Handle Pocket import
 async function handlePocketImport(articles) {
-  let imported = 0;
-  let failed = 0;
   const total = articles.length;
-  
-  log.info('Starting Pocket import', { total, firstArticle: articles[0] });
-  
-  // Process articles in batches to avoid overwhelming the API
-  const batchSize = 5;
-  
-  for (let i = 0; i < articles.length; i += batchSize) {
-    const batch = articles.slice(i, i + batchSize);
-    
-    // Process batch in parallel
-    const promises = batch.map(async (article) => {
+  const importKey = 'pocketImportStatus';
+  log.info('Starting Pocket bulk import', { total });
+
+  await storageService.set({ [importKey]: { status: 'running', imported: 0, total } });
+
+  try {
+    const notesPayload = await Promise.all(articles.map(async (article) => {
       try {
-        // Validate URL first
         if (!article.url || !article.url.startsWith('http')) {
           throw new Error(`Invalid URL: ${article.url}`);
         }
-        
-        log.debug('Processing article:', { title: article.title, url: article.url, hasTitle: !!article.title });
-        
-        // Create a minimal article object for import
+
         const articleData = {
           title: article.title || 'Untitled',
           url: article.url,
           description: `Imported from Pocket on ${new Date().toLocaleDateString()}`,
-          content: '', // We don't have content from Pocket export
+          content: '',
           author: '',
           publishedTime: '',
           images: [],
           savedAt: (article.addedAt && typeof article.addedAt.toISOString === 'function') ? article.addedAt.toISOString() : new Date().toISOString(),
-          domain: new URL(article.url).hostname
+          domain: new URL(article.url).hostname,
+          tags: ['from-pocket', ...(Array.isArray(article.tags) ? article.tags : [])]
         };
         
-        log.debug('Created articleData, calling saveToThoughtstream');
-        
-        // Add from-pocket tag along with original tags
-        const tags = ['from-pocket', ...(Array.isArray(article.tags) ? article.tags : [])];
-        
-        // Save to Thoughtstream
-        const result = await saveToThoughtstream(articleData, tags);
-        
-        log.debug('saveToThoughtstream succeeded, adding to local storage');
-        
-        // Add to local history
-        await storageService.addSavedArticle({
-          ...articleData,
-          noteId: result.noteId,
-          tags: tags
+        const noteId = generateShortId();
+        const userId = (await storageService.getUserInfo()).userId;
+        const timestamp = new Date().toISOString();
+
+        const tokens = [];
+        if (articleData.title) {
+          tokens.push({
+            type: 'paragraph',
+            tokenId: generateShortId(),
+            content: [{ type: 'text', content: articleData.title, marks: [] }],
+            depth: 0,
+          });
+        }
+        tokens.push(createLinkTokens(articleData.url));
+        const tagsContent = articleData.tags.flatMap(tag => ([
+            { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
+            { type: 'text', content: ' ', marks: [] }
+        ]));
+        tokens.push({
+            type: 'paragraph',
+            tokenId: generateShortId(),
+            content: tagsContent,
+            depth: 0,
         });
-        
-        imported++;
+
+        return {
+          id: noteId,
+          authorId: userId,
+          tokens: calculateTokenPositions(tokens),
+          readAll: false,
+          updatedAt: timestamp,
+          deletedAt: null,
+          folderId: null,
+          insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+          isSharedPrivately: false,
+          directUrlOnly: true,
+          expansionSetting: 'auto',
+          // Attach article data for saving to local storage after successful import
+          _localData: articleData
+        };
       } catch (error) {
-        log.error('Failed to import article:', article.url, 'Error:', error.message || error.toString());
-        log.debug('Error name:', error.name, 'Stack:', error.stack);
-        failed++;
+        log.error('Failed to process article for bulk import', { url: article.url, error: error.message });
+        return null; // This will be filtered out
       }
-    });
-    
-    // Wait for batch to complete
-    await Promise.all(promises);
-    
-    // Small delay between batches to respect rate limits
-    if (i + batchSize < articles.length) {
-      await new Promise(resolve => setTimeout(resolve, 1000));
+    }));
+
+    const validNotes = notesPayload.filter(note => note !== null);
+    const failed = total - validNotes.length;
+
+    if (validNotes.length > 0) {
+      log.info(`Sending bulk import request with ${validNotes.length} notes.`);
+      // Create a deep copy for the API call, preserving _localData in the original
+      const notesForApi = validNotes.map(n => {
+        const apiNote = { ...n };
+        delete apiNote._localData;
+        return apiNote;
+      });
+      await apiClient.post('/notes', { notes: notesForApi });
+
+      // Save to local storage after successful API call
+      for (const note of validNotes) {
+        await storageService.addSavedArticle({
+          ...note._localData,
+          noteId: note.id,
+        });
+      }
     }
+
+    await storageService.set({ [importKey]: { status: 'complete', imported: validNotes.length, failed, total } });
+    return { success: true, imported: validNotes.length, failed, total };
+
+  } catch (error) {
+    log.error('Pocket bulk import failed', { error: error.message });
+    await storageService.set({ [importKey]: { status: 'error', error: error.message, imported: 0, failed: total, total } });
+    return { success: false, error: error.message };
   }
-  
-  return {
-    success: true,
-    imported,
-    failed,
-    total
-  };
 }

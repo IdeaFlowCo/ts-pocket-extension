@@ -258,7 +258,7 @@ function displayRecentSaves(articles) {
     return;
   }
   
-  recentList.innerHTML = filtered.slice(0, searchQuery ? 20 : 5).map(article => {
+  recentList.innerHTML = filtered.map(article => {
     const timeAgo = getTimeAgo(new Date(article.savedAt));
     
     // Safely extract domain with validation
