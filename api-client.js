@@ -52,38 +52,6 @@ export class ContentExtractionError extends IdeaPocketError {
   }
 }
 
-// Rate limiter implementation
-class RateLimiter {
-  constructor(maxRequests = CONFIG.rateLimit.maxRequests, windowMs = CONFIG.rateLimit.windowMs) {
-    this.requests = [];
-    this.maxRequests = maxRequests;
-    this.windowMs = windowMs;
-  }
-
-  canMakeRequest() {
-    const now = Date.now();
-    // Remove old requests outside the window
-    this.requests = this.requests.filter(time => now - time < this.windowMs);
-    
-    if (this.requests.length >= this.maxRequests) {
-      return false;
-    }
-    
-    this.requests.push(now);
-    return true;
-  }
-
-  getWaitTime() {
-    if (this.requests.length === 0) return 0;
-    const oldestRequest = Math.min(...this.requests);
-    const waitTime = this.windowMs - (Date.now() - oldestRequest);
-    return Math.max(0, waitTime);
-  }
-
-  reset() {
-    this.requests = [];
-  }
-}
 
 // API Client class
 export class ApiClient {
@@ -92,7 +60,6 @@ export class ApiClient {
     this.timeout = CONFIG.api.timeout;
     this.retryAttempts = CONFIG.api.retryAttempts;
     this.retryDelay = CONFIG.api.retryDelay;
-    this.rateLimiter = new RateLimiter();
   }
 
   async fetchWithTimeout(url, options = {}, timeout = this.timeout) {
@@ -131,23 +98,6 @@ export class ApiClient {
   async makeRequest(path, method = 'GET', body = null, options = {}) {
     logger.debug(`API ${method} ${path}`, { hasBody: !!body });
     
-    // Track rate limit retry attempts to prevent infinite recursion
-    const rateLimitRetries = options._rateLimitRetries || 0;
-    const maxRateLimitRetries = 3;
-    
-    // Check rate limit
-    if (!this.rateLimiter.canMakeRequest()) {
-      const waitTime = this.rateLimiter.getWaitTime();
-      logger.warn('Rate limit reached', { waitTime, rateLimitRetries });
-      
-      if (options.skipRateLimit || rateLimitRetries >= maxRateLimitRetries) {
-        throw new RateLimitError(waitTime, { path, method, rateLimitRetries });
-      }
-      
-      await new Promise(resolve => setTimeout(resolve, waitTime));
-      return this.makeRequest(path, method, body, { ...options, _rateLimitRetries: rateLimitRetries + 1 });
-    }
-
     const retries = options.retries ?? this.retryAttempts;
     
     for (let attempt = 0; attempt < retries; attempt++) {
