@@ -533,6 +533,9 @@ function setupEventListeners() {
       
       if (response.success) {
         showStatus('Tags added!', 'success');
+        // Clear the tag pills after successful addition to avoid duplicates
+        postSaveTags = [];
+        renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
         // Reset button state after success
         addTagsBtn.disabled = false;
         addTagsBtn.textContent = 'Add';
