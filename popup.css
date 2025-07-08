@@ -1182,6 +1182,10 @@ body {
 }
 
 /* Special positioning for recent item buttons */
+.recent-item .tooltip {
+  position: static;
+}
+
 .recent-item .tooltip .tooltip-text {
   bottom: -35px;
   top: auto;
