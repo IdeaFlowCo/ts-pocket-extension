@@ -494,6 +494,13 @@ function setupEventListeners() {
     }
   });
   
+  // Close post-save button - reload popup to reset state
+  const closePostSaveBtn = document.getElementById('closePostSaveBtn');
+  closePostSaveBtn.addEventListener('click', () => {
+    // Simple reload to reset the popup to initial state
+    location.reload();
+  });
+  
   // Add tags button
   addTagsBtn.addEventListener('click', async () => {
     // First, handle any unpilled text in the input
