@@ -529,20 +529,34 @@ body {
 /* Custom scrollbar for recent-list */
 .recent-list::-webkit-scrollbar {
   width: 6px;
+  opacity: 0;
+  transition: opacity 0.3s;
+}
+
+.recent-list:hover::-webkit-scrollbar {
+  opacity: 1;
 }
 
 .recent-list::-webkit-scrollbar-track {
-  background: #f1f1f1;
+  background: transparent;
   border-radius: 3px;
 }
 
+.recent-list:hover::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
 .recent-list::-webkit-scrollbar-thumb {
-  background: #c1c1c1;
+  background: transparent;
   border-radius: 3px;
   transition: background 0.2s;
 }
 
-.recent-list::-webkit-scrollbar-thumb:hover {
+.recent-list:hover::-webkit-scrollbar-thumb {
+  background: #c1c1c1;
+}
+
+.recent-list:hover::-webkit-scrollbar-thumb:hover {
   background: #a8a8a8;
 }
 
