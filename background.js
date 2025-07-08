@@ -55,6 +55,19 @@ chromeApi.runtime.onInstalled.addListener(async (details) => {
 log.info('Initializing extension...');
 ensureInitialized();
 
+// Handle keyboard shortcut commands
+chromeApi.commands.onCommand.addListener(async (command) => {
+  log.info('Keyboard command received:', command);
+  
+  if (command === '_execute_action') {
+    try {
+      await chromeApi.action.openPopup();
+    } catch (error) {
+      log.error('Failed to open popup from keyboard shortcut:', error);
+    }
+  }
+});
+
 // Ensure initialization happens only once
 function ensureInitialized() {
   if (!initializationPromise) {
