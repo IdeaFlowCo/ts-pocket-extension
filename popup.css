@@ -489,10 +489,11 @@ body {
 }
 
 .recent-section h3 {
-  font-size: 14px;
+  font-size: 16px;
   font-weight: 600;
   margin: 0;
   color: #666;
+  white-space: nowrap;
 }
 
 .search-container {
@@ -501,7 +502,7 @@ body {
 }
 
 .search-input {
-  width: 200px;
+  width: 180px;
   padding: 6px 32px 6px 10px;
   border: 1px solid #ddd;
   border-radius: 4px;
@@ -637,7 +638,7 @@ body {
 }
 
 .recent-item-url {
-  font-size: 12px;
+  font-size: 13px;
   color: #666;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -669,7 +670,7 @@ body {
 }
 
 .recent-item-tags {
-  font-size: 11px;
+  font-size: 12px;
   color: #019AB0;
   margin-top: 2px;
 }
@@ -677,9 +678,9 @@ body {
 .open-note-btn {
   position: absolute;
   top: 4px;
-  right: 28px; /* Positioned to the left of delete button */
-  width: 20px;
-  height: 20px;
+  right: 30px; /* Adjusted for larger button size */
+  width: 24px;
+  height: 24px;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid #ddd;
   border-radius: 3px;
@@ -702,16 +703,16 @@ body {
 }
 
 .open-note-btn svg {
-  width: 14px;
-  height: 14px;
+  width: 16px;
+  height: 16px;
 }
 
 .delete-btn {
   position: absolute;
   top: 4px;
   right: 4px;
-  width: 20px;
-  height: 20px;
+  width: 24px;
+  height: 24px;
   background: rgba(255, 255, 255, 0.9);
   border: 1px solid #ddd;
   border-radius: 3px;
@@ -721,7 +722,7 @@ body {
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 14px;
+  font-size: 16px;
   color: #999;
   padding: 0;
   line-height: 1;
