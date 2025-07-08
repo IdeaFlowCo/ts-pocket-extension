@@ -60,7 +60,7 @@ We may update this privacy policy periodically. Any changes will be reflected in
 ## 9. Contact Information
 
 For questions about this privacy policy, please contact:
-**support@ideaflow.io*
+**support@ideaflow.io**
 
 ## 10. Consent
 
