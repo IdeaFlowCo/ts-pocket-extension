@@ -105,12 +105,15 @@
                             class="tag-pills-container"
                         ></div>
                         <div class="tags-input-container">
-                            <input
-                                type="text"
-                                id="preSaveTagsInput"
-                                class="tags-input"
-                                placeholder="Add tag..."
-                            />
+                            <div class="tooltip" style="width: 100%;">
+                                <input
+                                    type="text"
+                                    id="preSaveTagsInput"
+                                    class="tags-input"
+                                    placeholder="Add tags (space-separated)..."
+                                />
+                                <span class="tooltip-text">Delimiters: space, commas, semicolons</span>
+                            </div>
                             <button
                                 id="clearPreSaveTagsBtn"
                                 class="clear-tags-btn hidden"
