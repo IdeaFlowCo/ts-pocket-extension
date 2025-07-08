@@ -263,47 +263,44 @@
                 </div>
 
                 <div class="import-content">
-                    <div class="import-step">
-                        <h3>Step 1: Export your Pocket data</h3>
-                        <p>Visit <a href="https://getpocket.com/export" target="_blank">getpocket.com/export</a> and download your data</p>
-                    </div>
-                    
-                    <div class="import-step">
-                        <h3>Step 2: Choose your export file</h3>
-                        <p>Select the pocket.zip file you downloaded</p>
-                        
-                        <button id="importMainBtn" class="primary-btn">
-                            <span class="btn-icon">
-                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"></path>
-                                </svg>
-                            </span>
-                            <span class="btn-text">Select pocket.zip</span>
-                        </button>
-                        
-                        <div class="import-alt">
-                            <a href="#" id="importMainFolderLink" class="small-link">
-                                or import unzipped folder
-                            </a>
-                        </div>
-                    </div>
-                    
-                    <div id="importMainProgress" class="import-progress hidden"></div>
-                    
-                    <!-- Hidden file inputs -->
+                    <p>
+                        Export your data from
+                        <a href="https://getpocket.com/export" target="_blank"
+                            >getpocket.com/export</a
+                        >, then select the downloaded `.zip` or `.csv` file
+                        below.
+                    </p>
+
+                    <button id="importFileBtn" class="primary-btn">
+                        <span class="btn-icon">
+                            <svg
+                                width="18"
+                                height="18"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                stroke-width="2"
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                            >
+                                <path
+                                    d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+                                ></path>
+                            </svg>
+                        </span>
+                        <span class="btn-text">Select Import File</span>
+                    </button>
+
+                    <div id="importStatus" class="import-progress hidden"></div>
+
+                    <!-- Hidden file input -->
                     <input
                         type="file"
-                        id="importZipFile"
-                        accept=".zip"
+                        id="importFileInput"
+                        accept=".zip,.csv"
                         style="display: none"
                     />
-                    <input
-                        type="file"
-                        id="importFolder"
-                        webkitdirectory
-                        style="display: none"
-                    />
-                    
+
                     <div class="import-notes">
                         <h4>What will be imported:</h4>
                         <ul>
@@ -311,7 +308,6 @@
                             <li>Tags from Pocket</li>
                             <li>Save dates</li>
                         </ul>
-                        <p class="import-warning">Note: Article content will be fetched when possible, but some older articles may only import titles and URLs.</p>
                     </div>
                 </div>
             </div>
@@ -388,8 +384,7 @@
                                         Highlight"
                                     </li>
                                     <li>
-                                        Saved with #highlight tag instead of
-                                        #pocket
+                                        Saved with #highlight tag
                                     </li>
                                 </ul>
                             </div>

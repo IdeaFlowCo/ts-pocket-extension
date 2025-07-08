@@ -7,7 +7,7 @@ A Chrome extension that provides a Pocket-like experience for saving articles to
 - **One-click save**: Save any webpage to Thoughtstream with a single click
 - **Smart article extraction**: Automatically extracts article content, removing ads and navigation
 - **Metadata capture**: Saves title, author, publication date, and description
-- **Hashtag organization**: Automatically adds #pocket hashtag to saved articles
+- **Hashtag organization**: Automatically adds #from-pocket hashtag to imported articles
 - **Recent saves**: View your recently saved articles in the popup
 - **Keyboard shortcut**: Cmd+Shift+P (Mac) / Ctrl+Shift+P (Windows/Linux)
 - **Context menu**: Right-click to save pages
@@ -44,7 +44,7 @@ A Chrome extension that provides a Pocket-like experience for saving articles to
 ### Article Storage Format
 Articles are saved as notes in Thoughtstream with the following format:
 ```
-#pocket
+#from-pocket
 
 [Article Title]
 
