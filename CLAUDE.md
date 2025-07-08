@@ -31,6 +31,14 @@ Key modules:
 3. Click "Load unpacked" and select this directory
 4. No build/compile step required - changes take effect on extension reload
 
+**Production Build:**
+```bash
+./build-production.sh
+```
+- Creates production build in `build/` directory
+- Generates `ideapocket-production.zip` for Chrome Web Store
+- This is ONLY for production releases, not for local development
+
 **Debugging:**
 - Enable debug mode: Open popup → Settings → Toggle "Debug Mode"
 - View logs: Open service worker DevTools from `chrome://extensions/`

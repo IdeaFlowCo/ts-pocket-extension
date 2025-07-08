@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "IdeaPocket - Save to Thoughtstream",
-  "version": "1.0.2",
+  "version": "1.0.3",
   "description": "Save articles and text selections to Thoughtstream with a Pocket-like experience",
   "author": "Ideaflow",
   "homepage_url": "https://ideaflow.app",
