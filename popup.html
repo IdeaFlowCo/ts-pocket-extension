@@ -34,6 +34,28 @@
                             />
                         </svg>
                     </button>
+                    <button
+                        id="importBtn"
+                        class="icon-btn"
+                        title="Import from Pocket"
+                    >
+                        <!-- Heroicons: arrow-down-tray (download/import) -->
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="1.5"
+                            stroke="currentColor"
+                            width="20"
+                            height="20"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"
+                            />
+                        </svg>
+                    </button>
                     <button id="settingsBtn" class="icon-btn" title="Settings">
                         <!-- Heroicons: cog-6-tooth -->
                         <svg
@@ -172,7 +194,7 @@
                                     class="add-tags-btn"
                                     title="Add tags"
                                 >
-                                    Add
+                                    Add Tags
                                 </button>
                             </div>
                             <div
@@ -216,6 +238,84 @@
                 </div>
             </div>
 
+            <!-- Import View -->
+            <div id="importView" class="view hidden">
+                <div class="import-header">
+                    <button id="importBackBtn" class="icon-btn">
+                        <!-- Heroicons: arrow-left -->
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="2"
+                            stroke="currentColor"
+                            width="20"
+                            height="20"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M10.5 19.5 3 12m0 0 7.5-7.5M3 12h18"
+                            />
+                        </svg>
+                    </button>
+                    <h2>Import from Pocket</h2>
+                </div>
+
+                <div class="import-content">
+                    <div class="import-step">
+                        <h3>Step 1: Export your Pocket data</h3>
+                        <p>Visit <a href="https://getpocket.com/export" target="_blank">getpocket.com/export</a> and download your data</p>
+                    </div>
+                    
+                    <div class="import-step">
+                        <h3>Step 2: Choose your export file</h3>
+                        <p>Select the pocket.zip file you downloaded</p>
+                        
+                        <button id="importMainBtn" class="primary-btn">
+                            <span class="btn-icon">
+                                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5M16.5 12 12 16.5m0 0L7.5 12m4.5 4.5V3"></path>
+                                </svg>
+                            </span>
+                            <span class="btn-text">Select pocket.zip</span>
+                        </button>
+                        
+                        <div class="import-alt">
+                            <a href="#" id="importMainFolderLink" class="small-link">
+                                or import unzipped folder
+                            </a>
+                        </div>
+                    </div>
+                    
+                    <div id="importMainProgress" class="import-progress hidden"></div>
+                    
+                    <!-- Hidden file inputs -->
+                    <input
+                        type="file"
+                        id="importZipFile"
+                        accept=".zip"
+                        style="display: none"
+                    />
+                    <input
+                        type="file"
+                        id="importFolder"
+                        webkitdirectory
+                        style="display: none"
+                    />
+                    
+                    <div class="import-notes">
+                        <h4>What will be imported:</h4>
+                        <ul>
+                            <li>Article titles and URLs</li>
+                            <li>Tags from Pocket</li>
+                            <li>Save dates</li>
+                        </ul>
+                        <p class="import-warning">Note: Article content will be fetched when possible, but some older articles may only import titles and URLs.</p>
+                    </div>
+                </div>
+            </div>
+
             <!-- Settings View -->
             <div id="settingsView" class="view hidden">
                 <div class="settings-header">
@@ -249,6 +349,13 @@
                         </div>
                         <button id="authBtn" class="secondary-btn">
                             Login with Thoughtstream
+                        </button>
+                    </div>
+
+                    <div class="setting-item">
+                        <label>Import from Pocket</label>
+                        <button id="importSettingsBtn" class="secondary-btn">
+                            Import from Pocket
                         </button>
                     </div>
 
@@ -305,48 +412,6 @@
                             >
                                 Change
                             </button>
-                        </div>
-                    </div>
-
-                    <div class="setting-item">
-                        <label>Import from Pocket</label>
-                        <div class="import-section">
-                            <div class="import-instructions">
-                                Export your Pocket data from
-                                <a
-                                    href="https://getpocket.com/export"
-                                    target="_blank"
-                                    >getpocket.com/export</a
-                                >
-                            </div>
-                            <input
-                                type="file"
-                                id="importZipFile"
-                                accept=".zip"
-                                style="display: none"
-                            />
-                            <input
-                                type="file"
-                                id="importFolder"
-                                webkitdirectory
-                                style="display: none"
-                            />
-                            <button id="importZipBtn" class="secondary-btn">
-                                Import pocket.zip file
-                            </button>
-                            <div class="import-alt">
-                                <a
-                                    href="#"
-                                    id="importFolderLink"
-                                    class="small-link"
-                                >
-                                    or import unzipped folder
-                                </a>
-                            </div>
-                            <div
-                                id="importProgress"
-                                class="import-progress hidden"
-                            ></div>
                         </div>
                     </div>
 

@@ -8,8 +8,10 @@ import Fuse from './fuse.mjs';
 // DOM Elements
 const mainView = document.getElementById('mainView');
 const settingsView = document.getElementById('settingsView');
+const importView = document.getElementById('importView');
 const quickSaveBtn = document.getElementById('quickSaveBtn');
 const thoughtstreamBtn = document.getElementById('thoughtstreamBtn');
+const importBtn = document.getElementById('importBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const backBtn = document.getElementById('backBtn');
 const authBtn = document.getElementById('authBtn');
@@ -26,8 +28,6 @@ const clearPreSaveTagsBtn = document.getElementById('clearPreSaveTagsBtn');
 const clearTagsBtn = document.getElementById('clearTagsBtn');
 const preSaveTagsPills = document.getElementById('preSaveTagsPills');
 const tagsPills = document.getElementById('tagsPills');
-const importZipBtn = document.getElementById('importZipBtn');
-const importFolderLink = document.getElementById('importFolderLink');
 const importZipFile = document.getElementById('importZipFile');
 const importFolder = document.getElementById('importFolder');
 const importProgress = document.getElementById('importProgress');
@@ -37,6 +37,11 @@ const confirmMessage = document.getElementById('confirmMessage');
 const confirmOkBtn = document.getElementById('confirmOkBtn');
 const confirmCancelBtn = document.getElementById('confirmCancelBtn');
 const changeShortcutBtn = document.getElementById('changeShortcutBtn');
+const importBackBtn = document.getElementById('importBackBtn');
+const importMainBtn = document.getElementById('importMainBtn');
+const importMainFolderLink = document.getElementById('importMainFolderLink');
+const importMainProgress = document.getElementById('importMainProgress');
+const importSettingsBtn = document.getElementById('importSettingsBtn');
 
 // Autocomplete elements
 const preSaveTagsDropdown = document.getElementById('preSaveTagsDropdown');
@@ -232,7 +237,7 @@ function displayRecentSaves(articles) {
   const filtered = searchQuery ? searchArticles(searchQuery) : sortedArticles;
   
   if (filtered.length === 0) {
-    recentList.innerHTML = '<div class="loading">No matching articles found</div>';
+    recentList.innerHTML = '<div class="loading">No results in recently saved</div>';
     return;
   }
   
@@ -429,9 +434,28 @@ function setupEventListeners() {
     window.close(); // Close the popup after opening
   });
   
+  // Import button - show import view
+  importBtn.addEventListener('click', () => {
+    showView('import');
+  });
+  
   // Settings navigation
   settingsBtn.addEventListener('click', () => showView('settings'));
   backBtn.addEventListener('click', () => showView('main'));
+  
+  // Import view navigation
+  importBackBtn.addEventListener('click', () => showView('main'));
+  
+  // Import main button - trigger file picker
+  importMainBtn.addEventListener('click', () => {
+    importZipFile.click();
+  });
+  
+  // Import folder link
+  importMainFolderLink.addEventListener('click', (e) => {
+    e.preventDefault();
+    importFolder.click();
+  });
   
   // Auth button
   authBtn.addEventListener('click', handleAuth);
@@ -611,11 +635,9 @@ function setupEventListeners() {
     tagsInput.focus();
   });
   
-  // Import buttons
-  importZipBtn.addEventListener('click', () => importZipFile.click());
-  importFolderLink.addEventListener('click', (e) => {
-    e.preventDefault();
-    importFolder.click();
+  // Import from settings button - show import view
+  importSettingsBtn.addEventListener('click', () => {
+    showView('import');
   });
   importZipFile.addEventListener('change', handlePocketImport);
   importFolder.addEventListener('change', handlePocketFolderImport);
@@ -881,12 +903,18 @@ async function handleAuth() {
 
 // Show view
 function showView(view) {
+  // Hide all views first
+  mainView.classList.add('hidden');
+  settingsView.classList.add('hidden');
+  importView.classList.add('hidden');
+  
   if (view === 'settings') {
-    mainView.classList.add('hidden');
     settingsView.classList.remove('hidden');
     updateShortcutDisplay();
+  } else if (view === 'import') {
+    importView.classList.remove('hidden');
   } else {
-    settingsView.classList.add('hidden');
+    // Default to main view
     mainView.classList.remove('hidden');
     
     // Reset main view UI
@@ -1265,15 +1293,22 @@ async function processImportedArticles(articles) {
 
 // Show import status
 function showImportStatus(message, type) {
-  importProgress.textContent = message;
-  importProgress.classList.remove('hidden', 'success', 'error');
-  if (type) {
-    importProgress.classList.add(type);
-  }
+  // Update both progress elements
+  const progressElements = [importProgress, importMainProgress];
+  
+  progressElements.forEach(element => {
+    element.textContent = message;
+    element.classList.remove('hidden', 'success', 'error');
+    if (type) {
+      element.classList.add(type);
+    }
+  });
   
   if (type === 'success' || type === 'error') {
     setTimeout(() => {
-      importProgress.classList.add('hidden');
+      progressElements.forEach(element => {
+        element.classList.add('hidden');
+      });
     }, 5000);
   }
 }

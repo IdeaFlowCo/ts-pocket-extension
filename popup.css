@@ -623,7 +623,7 @@ body {
 }
 
 /* Settings View */
-.settings-header {
+.settings-header, .import-header {
   display: flex;
   align-items: center;
   padding: 16px;
@@ -631,14 +631,74 @@ body {
   border-bottom: 1px solid #e0e0e0;
 }
 
-.settings-header h2 {
+.settings-header h2, .import-header h2 {
   margin-left: 12px;
   font-size: 18px;
   font-weight: 600;
 }
 
-.settings-content {
+.settings-content, .import-content {
   padding: 16px;
+}
+
+/* Import View Specific */
+.import-content {
+  max-height: 500px;
+  overflow-y: auto;
+}
+
+.import-step {
+  margin-bottom: 24px;
+  padding: 16px;
+  background: #f9f9f9;
+  border-radius: 8px;
+}
+
+.import-step h3 {
+  margin: 0 0 8px 0;
+  font-size: 16px;
+  color: #333;
+}
+
+.import-step p {
+  margin: 0 0 16px 0;
+  color: #666;
+}
+
+.import-step .primary-btn {
+  width: 100%;
+  margin: 16px 0;
+}
+
+.import-notes {
+  margin-top: 24px;
+  padding: 16px;
+  background: #f0f8ff;
+  border-radius: 8px;
+  border: 1px solid #d0e8ff;
+}
+
+.import-notes h4 {
+  margin: 0 0 8px 0;
+  font-size: 14px;
+  color: #333;
+}
+
+.import-notes ul {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+
+.import-notes li {
+  margin: 4px 0;
+  color: #555;
+}
+
+.import-warning {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #666;
+  font-style: italic;
 }
 
 .setting-item {
