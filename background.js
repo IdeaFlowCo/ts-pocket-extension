@@ -1403,12 +1403,30 @@ chrome.runtime.onSuspend.addListener(() => {
 async function handlePocketImport(articles) {
   const total = articles.length;
   const importKey = 'pocketImportStatus';
-  log.info('Starting Pocket bulk import', { total });
+  log.info('Starting Pocket import', { total });
 
   await storageService.set({ [importKey]: { status: 'running', imported: 0, total } });
+  
+  // Set badge to show import in progress
+  try {
+    await chromeApi.action.setBadgeText({ text: '0' });
+    await chromeApi.action.setBadgeBackgroundColor({ color: '#4CAF50' });
+    log.info('Badge set for import start');
+  } catch (error) {
+    log.error('Failed to set badge for import', { error: error.message });
+  }
+
+  let imported = 0;
+  let failed = 0;
+  const errors = [];
 
   try {
-    const notesPayload = await Promise.all(articles.map(async (article) => {
+    const userId = (await storageService.getUserInfo()).userId;
+
+    // Process articles one by one using individual /notes/top calls
+    for (let i = 0; i < articles.length; i++) {
+      const article = articles[i];
+      
       try {
         if (!article.url || !article.url.startsWith('http')) {
           throw new Error(`Invalid URL: ${article.url}`);
@@ -1428,7 +1446,6 @@ async function handlePocketImport(articles) {
         };
         
         const noteId = generateShortId();
-        const userId = (await storageService.getUserInfo()).userId;
         const timestamp = new Date().toISOString();
 
         const tokens = [];
@@ -1452,7 +1469,7 @@ async function handlePocketImport(articles) {
             depth: 0,
         });
 
-        return {
+        const noteData = {
           id: noteId,
           authorId: userId,
           tokens: calculateTokenPositions(tokens),
@@ -1463,44 +1480,93 @@ async function handlePocketImport(articles) {
           insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
           isSharedPrivately: false,
           directUrlOnly: true,
-          expansionSetting: 'auto',
-          // Attach article data for saving to local storage after successful import
-          _localData: articleData
+          expansionSetting: 'auto'
         };
-      } catch (error) {
-        log.error('Failed to process article for bulk import', { url: article.url, error: error.message });
-        return null; // This will be filtered out
-      }
-    }));
 
-    const validNotes = notesPayload.filter(note => note !== null);
-    const failed = total - validNotes.length;
+        // Use individual /notes/top API call with timeout protection
+        log.info(`Starting API call for article ${imported + 1}/${total}`, { title: articleData.title, url: articleData.url });
+        
+        // Add 15-second timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('API call timeout after 15 seconds')), 15000)
+        );
+        
+        // This will throw an error if either the API call fails OR times out
+        await Promise.race([
+          apiClient.post('/notes/top', { note: noteData }),
+          timeoutPromise
+        ]);
+        
+        log.info(`API call succeeded for article ${imported + 1}/${total}`);
 
-    if (validNotes.length > 0) {
-      log.info(`Sending bulk import request with ${validNotes.length} notes.`);
-      // Create a deep copy for the API call, preserving _localData in the original
-      const notesForApi = validNotes.map(n => {
-        const apiNote = { ...n };
-        delete apiNote._localData;
-        return apiNote;
-      });
-      await apiClient.post('/notes', { notes: notesForApi });
-
-      // Save to local storage after successful API call
-      for (const note of validNotes) {
+        // Save to local storage after successful API call
         await storageService.addSavedArticle({
-          ...note._localData,
-          noteId: note.id,
+          ...articleData,
+          noteId: noteId,
         });
+
+        imported++;
+        
+        // Update progress in storage and badge
+        await storageService.set({ [importKey]: { status: 'running', imported, failed, total } });
+        try {
+          await chromeApi.action.setBadgeText({ text: `${imported}` });
+          log.debug(`Badge updated to ${imported}`);
+        } catch (error) {
+          log.error('Failed to update badge', { error: error.message });
+        }
+        
+        log.info(`Imported article ${imported}/${total}`, { title: articleData.title });
+
+      } catch (error) {
+        failed++;
+        errors.push({ url: article.url, error: error.message });
+        log.error('Failed to import individual article', { 
+          articleIndex: i + 1,
+          total,
+          url: article.url, 
+          title: article.title,
+          error: error.message,
+          errorType: error.constructor.name 
+        });
+        
+        // Update progress even on failure
+        await storageService.set({ [importKey]: { status: 'running', imported, failed, total } });
       }
     }
 
-    await storageService.set({ [importKey]: { status: 'complete', imported: validNotes.length, failed, total } });
-    return { success: true, imported: validNotes.length, failed, total };
+    // Clear badge
+    try {
+      await chromeApi.action.setBadgeText({ text: '' });
+      log.info('Badge cleared after import');
+    } catch (error) {
+      log.error('Failed to clear badge', { error: error.message });
+    }
+
+    // Send completion notification
+    if (imported > 0) {
+      try {
+        await chromeApi.notifications.create('pocket-import-complete', {
+          type: 'basic',
+          iconUrl: 'icon-48.png',
+          title: 'Pocket Import Complete',
+          message: `Successfully imported ${imported} articles${failed > 0 ? `, ${failed} failed` : ''}`
+        });
+      } catch (error) {
+        log.error('Failed to create completion notification', { error: error.message });
+        // Don't let notification failure break the import completion
+      }
+    }
+
+    await storageService.set({ [importKey]: { status: 'complete', imported, failed, total } });
+    log.info('Pocket import completed', { imported, failed, total });
+    
+    return { success: true, imported, failed, total };
 
   } catch (error) {
-    log.error('Pocket bulk import failed', { error: error.message });
-    await storageService.set({ [importKey]: { status: 'error', error: error.message, imported: 0, failed: total, total } });
+    log.error('Pocket import failed', { error: error.message });
+    await chromeApi.action.setBadgeText({ text: '' });
+    await storageService.set({ [importKey]: { status: 'error', error: error.message, imported, failed: total, total } });
     return { success: false, error: error.message };
   }
 }

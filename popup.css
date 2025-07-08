@@ -126,6 +126,12 @@ body {
   border: 1px solid #f44336;
 }
 
+.save-status.info {
+  background: #e3f2fd;
+  color: #1565c0;
+  border: 1px solid #2196f3;
+}
+
 .save-status.warning {
   background: #fff3cd;
   color: #856404;
@@ -1002,6 +1008,11 @@ body {
 .import-progress.error {
   background: #ffebee;
   color: #c62828;
+}
+
+.import-progress.info {
+  background: #e3f2fd;
+  color: #1565c0;
 }
 
 /* Loading State */

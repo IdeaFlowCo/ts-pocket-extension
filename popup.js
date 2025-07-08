@@ -105,7 +105,7 @@ async function checkAuthStatus() {
     // Check if this is first use
     const hasSeenSetup = await storageService.get(['hasSeenSetup']);
     if (!isAuthenticated && !hasSeenSetup.hasSeenSetup) {
-      showStatus('Please login to get started', 'success');
+      showStatus('Please login to get started', 'info');
       showView('settings');
       await storageService.set({ hasSeenSetup: true });
     }
@@ -685,6 +685,16 @@ function setupEventListeners() {
     if (namespace === 'local' && changes.pocketImportStatus) {
       const newStatus = changes.pocketImportStatus.newValue;
       updateImportStatus(newStatus);
+      
+      // Also show status prominently in main view
+      if (newStatus && newStatus.status === 'running') {
+        showStatus(`Import in progress: ${newStatus.imported}/${newStatus.total}`, 'info');
+      } else if (newStatus && newStatus.status === 'complete') {
+        // Show completion status prominently for longer duration
+        showPersistentStatus(`Import complete! Imported: ${newStatus.imported}, Failed: ${newStatus.failed}`, 'success');
+      } else if (newStatus && newStatus.status === 'error') {
+        showStatus(`Import failed: ${newStatus.error}`, 'error');
+      }
     }
   });
   
@@ -989,10 +999,10 @@ function showStatus(message, type) {
   const statusMessage = saveStatus.querySelector('.status-message');
   
   // Remove all classes and add the appropriate ones
-  saveStatus.classList.remove('hidden', 'show', 'success', 'error');
+  saveStatus.classList.remove('hidden', 'show', 'success', 'error', 'info');
   saveStatus.classList.add(type);
   
-  statusIcon.textContent = type === 'success' ? '✓' : '!';
+  statusIcon.textContent = type === 'success' ? '✓' : type === 'info' ? 'ℹ' : '!';
   statusMessage.textContent = message;
   
   // Force a reflow to ensure the transition works
@@ -1008,6 +1018,33 @@ function showStatus(message, type) {
       saveStatus.classList.add('hidden');
     }, 300); // Wait for fade out transition
   }, 2500);
+}
+
+// Show persistent status message that stays longer and is more prominent
+function showPersistentStatus(message, type) {
+  const statusIcon = saveStatus.querySelector('.status-icon');
+  const statusMessage = saveStatus.querySelector('.status-message');
+  
+  // Remove all classes and add the appropriate ones
+  saveStatus.classList.remove('hidden', 'show', 'success', 'error', 'info');
+  saveStatus.classList.add(type);
+  
+  statusIcon.textContent = type === 'success' ? '✓' : type === 'info' ? 'ℹ' : '!';
+  statusMessage.textContent = message;
+  
+  // Force a reflow to ensure the transition works
+  saveStatus.offsetHeight;
+  
+  // Show the status
+  saveStatus.classList.add('show');
+  
+  // Hide after 8 seconds (much longer than regular status)
+  setTimeout(() => {
+    saveStatus.classList.remove('show');
+    setTimeout(() => {
+      saveStatus.classList.add('hidden');
+    }, 300); // Wait for fade out transition
+  }, 8000);
 }
 
 // Update shortcut display
@@ -1356,6 +1393,11 @@ async function checkImportStatus() {
   const data = await storageService.get('pocketImportStatus');
   if (data && data.pocketImportStatus) {
     updateImportStatus(data.pocketImportStatus);
+    
+    // Also show status prominently in main view if import is running
+    if (data.pocketImportStatus.status === 'running') {
+      showStatus(`Import in progress: ${data.pocketImportStatus.imported}/${data.pocketImportStatus.total}`, 'info');
+    }
   }
 }
 
