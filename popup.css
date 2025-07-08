@@ -293,6 +293,11 @@ body {
   padding: 8px 32px 8px 12px; /* Only need room for × button */
 }
 
+/* Ensure post-save tags input has correct padding for both buttons */
+.post-save-options .tags-input {
+  padding: 8px 60px 8px 12px; /* Room for both × and Add buttons */
+}
+
 .tags-input {
   flex: 1;
   padding: 8px 60px 8px 12px; /* Adjusted right padding for both buttons */
@@ -337,7 +342,7 @@ body {
   flex: 1;
   display: flex;
   position: relative;
-  z-index: 100; /* Ensure tooltip container has proper stacking context */
+  z-index: 1; /* Ensure tooltip container has proper stacking context */
 }
 
 .tags-input-container .tooltip .tags-input {
