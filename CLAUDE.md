@@ -25,22 +25,26 @@ Key modules:
 
 ## Development Commands
 
+**Build Commands:**
+- `npm run build` - Full production build (creates `dist/` directory AND `ideapocket-production.zip`)
+- `npm run build:dev` - Development build only (creates `dist/` directory without zip)
+- `npm run zip` - Alias for `npm run build` (backwards compatibility)
+
 **Development Workflow:**
-1.  Run the build script: `npm run build`. This bundles all JavaScript into the `dist/` directory.
+1.  Run `npm run build:dev` to bundle JavaScript into the `dist/` directory.
 2.  Open `chrome://extensions/`, enable Developer Mode.
 3.  Click "Load unpacked" and select the **`dist/`** directory.
-4.  After changing any source file, re-run `npm run build` and then click the "reload" button for the extension in `chrome://extensions`.
+4.  After changing any source file, re-run `npm run build:dev` and click the "reload" button for the extension in `chrome://extensions`.
 
 **Production Release Workflow:**
-1.  Run the production build script: `./build-production.sh`.
-2.  This script cleans the `dist/` directory, runs the development build, copies all necessary assets into `dist/`, and creates `ideapocket-production.zip`.
+1.  Run `npm run build` to create a full production build.
+2.  This creates the `dist/` directory and `ideapocket-production.zip`.
 3.  Test the final build by loading the `dist/` directory as an unpacked extension.
 4.  Upload `ideapocket-production.zip` to the Chrome Web Store.
 
 **Debugging:**
-- Enable debug mode: Open popup → Settings → Toggle "Debug Mode"
 - View logs: Open service worker DevTools from `chrome://extensions/`
-- Export logs: Available in popup settings when debug mode is on
+- All popup logs are automatically sent to the service worker console with [POPUP] prefix
 
 ## Key Architectural Patterns
 
