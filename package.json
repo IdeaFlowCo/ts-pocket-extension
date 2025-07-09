@@ -5,8 +5,9 @@
   "main": "api-client.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "node esbuild.mjs",
-    "zip": "npm run build && cd dist && zip -r ../ideapocket-production.zip . -x '*.DS_Store' && cd .. && echo '📦 Production zip created: ideapocket-production.zip'"
+    "build": "node esbuild.mjs && cd dist && zip -r ../ideapocket-production.zip . -x '*.DS_Store' && cd .. && echo '📦 Production zip created: ideapocket-production.zip'",
+    "build:dev": "node esbuild.mjs",
+    "zip": "npm run build"
   },
   "repository": {
     "type": "git",
