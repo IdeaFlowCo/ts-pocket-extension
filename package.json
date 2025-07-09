@@ -1,7 +1,7 @@
 {
   "name": "ts-pocket-extension",
   "version": "1.0.0",
-  "description": "A powerful Chrome extension that provides a Pocket-like experience for saving articles, web pages, and text selections to Thoughtstream/Ideaflow.",
+  "description": "A powerful Chrome extension that provides a Pocket-like experience for saving articles, web pages, and text selections to Ideaflow.",
   "main": "api-client.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",

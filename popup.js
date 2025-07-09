@@ -18,7 +18,7 @@ const mainView = document.getElementById('mainView');
 const settingsView = document.getElementById('settingsView');
 const importView = document.getElementById('importView');
 const quickSaveBtn = document.getElementById('quickSaveBtn');
-const thoughtstreamBtn = document.getElementById('thoughtstreamBtn');
+const ideaflowBtn = document.getElementById('ideaflowBtn');
 const importBtn = document.getElementById('importBtn');
 const settingsBtn = document.getElementById('settingsBtn');
 const backBtn = document.getElementById('backBtn');
@@ -159,7 +159,7 @@ async function updateAuthDisplay() {
   } else {
     authStatus.classList.remove('authenticated');
     statusText.textContent = 'Not authenticated';
-    authBtn.textContent = 'Login with Thoughtstream';
+    authBtn.textContent = 'Login with Ideaflow';
   }
 }
 
@@ -316,7 +316,7 @@ function displayRecentSaves(articles) {
               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
             </svg>
           </button>
-          <span class="tooltip-text">Open in My Thoughtstream</span>
+          <span class="tooltip-text">Open in My Ideaflow</span>
         </div>
         <div class="tooltip">
           <button class="delete-btn" data-note-id="${escapeHtml(articleId)}">×</button>
@@ -341,8 +341,8 @@ function setupEventListeners() {
       }
       const noteIdArray = JSON.stringify([noteId]);
       const encodedNoteIdList = encodeURIComponent(noteIdArray);
-      const thoughtstreamNoteUrl = `https://ideaflow.app/?noteIdList=${encodedNoteIdList}`;
-      await chrome.tabs.create({ url: thoughtstreamNoteUrl, active: true });
+      const ideaflowNoteUrl = `https://ideaflow.app/?noteIdList=${encodedNoteIdList}`;
+      await chrome.tabs.create({ url: ideaflowNoteUrl, active: true });
       return;
     }
     
@@ -441,9 +441,9 @@ function setupEventListeners() {
     }
   });
   
-  thoughtstreamBtn.addEventListener('click', async () => {
-    const thoughtstreamUrl = 'https://ideaflow.app';
-    await chrome.tabs.create({ url: thoughtstreamUrl, active: true });
+  ideaflowBtn.addEventListener('click', async () => {
+    const ideaflowUrl = 'https://ideaflow.app';
+    await chrome.tabs.create({ url: ideaflowUrl, active: true });
     window.close();
   });
   
@@ -456,8 +456,8 @@ function setupEventListeners() {
   
   document.getElementById('openSavedNoteBtn').addEventListener('click', () => {
     if (lastSavedNoteId) {
-      const thoughtstreamUrl = `https://ideaflow.app/?noteIdList=%5B%22${lastSavedNoteId}%22%5D`;
-      chrome.tabs.create({ url: thoughtstreamUrl });
+      const ideaflowUrl = `https://ideaflow.app/?noteIdList=%5B%22${lastSavedNoteId}%22%5D`;
+      chrome.tabs.create({ url: ideaflowUrl });
     }
   });
   
@@ -752,7 +752,7 @@ async function handleQuickSave() {
     if (!response) {
       showStatus('No response from extension', 'error');
       quickSaveBtn.disabled = false;
-      quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Thoughtstream</span>';
+      quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Ideaflow</span>';
       return;
     }
     
@@ -779,10 +779,10 @@ async function handleQuickSave() {
       }
       
     } else {
-      const errorMsg = response?.error || 'Failed to save article to Thoughtstream';
+      const errorMsg = response?.error || 'Failed to save article to Ideaflow';
       showStatus(errorMsg, 'error');
       quickSaveBtn.disabled = false;
-      quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Thoughtstream</span>';
+      quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Ideaflow</span>';
       
       if (errorMsg.includes('401') || errorMsg.includes('Authentication')) {
         setTimeout(() => {
@@ -793,7 +793,7 @@ async function handleQuickSave() {
   } catch (error) {
     showStatus('Failed to save', 'error');
     quickSaveBtn.disabled = false;
-    quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Thoughtstream</span>';
+    quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Ideaflow</span>';
   }
 }
 
@@ -858,7 +858,7 @@ function showView(view) {
     
     quickSaveBtn.classList.remove('hidden');
     quickSaveBtn.disabled = false;
-    quickSaveBtn.innerHTML = '<span class="btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></span><span class="btn-text">Save to Thoughtstream</span>';
+    quickSaveBtn.innerHTML = '<span class="btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></span><span class="btn-text">Save to Ideaflow</span>';
     postSaveOptions.classList.add('hidden');
     preSaveTagsInput.value = '';
     tagsInput.value = '';
@@ -981,7 +981,7 @@ async function updateSaveButtonTooltip() {
     }
   } catch (error) {
     logger.error('Failed to get commands for tooltip:', { error: error.message });
-    tooltipSpan.textContent = 'Save to Thoughtstream'; // Fallback text
+    tooltipSpan.textContent = 'Save to Ideaflow'; // Fallback text
   }
 }
 

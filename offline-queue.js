@@ -66,7 +66,7 @@ class OfflineQueue {
           type: 'basic',
           iconUrl: 'icon-48.png',
           title: 'Article Synced',
-          message: `"${item.articleData.title}" has been saved to Thoughtstream`
+          message: `"${item.articleData.title}" has been saved to Ideaflow`
         });
       } catch (error) {
         item.retryCount++;

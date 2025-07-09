@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-IdeaPocket is a Chrome Extension that provides a Pocket-like interface for saving articles to Thoughtstream/Ideaflow. Despite the folder name "ts-pocket-extension", this is a pure JavaScript project (no TypeScript).
+IdeaPocket is a Chrome Extension that provides a Pocket-like interface for saving articles to Ideaflow. Despite the folder name "ts-pocket-extension", this is a pure JavaScript project (no TypeScript).
 
 ## Architecture
 
@@ -16,7 +16,7 @@ This is a Chrome Extension using Manifest V3 with:
 
 Key modules:
 - `auth.js` - OAuth2 PKCE authentication with Auth0
-- `api-client.js` - Thoughtstream API communication  
+- `api-client.js` - Ideaflow API communication  
 - `storage-service.js` - Chrome storage wrapper
 - `chrome-api.js` - Chrome API wrapper
 - `config.js` - Centralized configuration

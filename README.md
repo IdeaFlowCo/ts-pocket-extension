@@ -1,11 +1,11 @@
 # IdeaPocket Chrome Extension
 
-A powerful Chrome extension that provides a Pocket-like experience for saving articles, web pages, and text selections to Thoughtstream/Ideaflow.
+A powerful Chrome extension that provides a Pocket-like experience for saving articles, web pages, and text selections to Ideaflow.
 
 ## ✨ Features
 
 ### Core Functionality
-- **One-click save** - Save any webpage to Thoughtstream with a single click
+- **One-click save** - Save any webpage to Ideaflow with a single click
 - **Smart article extraction** - Automatically extracts article content, removing ads and navigation
 - **Text selection saving** - Select any text and save it as a highlight with preserved links
 - **Pre and post-save tagging** - Add tags before saving or after an article is saved
@@ -46,13 +46,13 @@ A powerful Chrome extension that provides a Pocket-like experience for saving ar
 ## 🔧 Setup
 
 1. **Click the IdeaPocket icon** in your browser toolbar
-2. **Login with Thoughtstream** - Uses secure OAuth2 authentication
+2. **Login with Ideaflow** - Uses secure OAuth2 authentication
 3. **Start saving!** - You're ready to save articles and highlights
 
 ## 📖 Usage
 
 ### Save an Article
-- **Method 1**: Click the IdeaPocket icon and then click "Save to Thoughtstream"
+- **Method 1**: Click the IdeaPocket icon and then click "Save to Ideaflow"
 - **Method 2**: Use keyboard shortcut (Cmd+Shift+P on Mac, Ctrl+Shift+P on Windows/Linux)
 - **Method 3**: Right-click on any page and select "Save to IdeaPocket"
 
@@ -98,14 +98,14 @@ A powerful Chrome extension that provides a Pocket-like experience for saving ar
 - **No tracking** - See our [Privacy Policy](PRIVACY-POLICY.md) for details
 
 ### API Integration
-- **Thoughtstream API** - Full integration with Ideaflow's note-taking platform
+- **Ideaflow API** - Full integration with Ideaflow's note-taking platform
 - **Rate limiting** - Respects API limits (50 requests/minute)
 - **Automatic retry** - Smart retry logic with exponential backoff
 
 ## 🔍 Troubleshooting
 
 ### "Not authenticated" error
-- Click the settings icon and login with Thoughtstream
+- Click the settings icon and login with Ideaflow
 - If already logged in, try logging out and back in
 
 ### Content not extracting properly
@@ -133,7 +133,7 @@ A powerful Chrome extension that provides a Pocket-like experience for saving ar
 ├── twitter-extractor.js  # Twitter-specific extraction
 ├── popup.html/js/css     # Extension popup UI
 ├── auth.js               # OAuth2 authentication
-├── api-client.js         # Thoughtstream API client
+├── api-client.js         # Ideaflow API client
 ├── storage-service.js    # Chrome storage wrapper
 ├── offline-queue.js      # Offline save management
 ├── config.js             # Centralized configuration

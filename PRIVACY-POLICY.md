@@ -1,10 +1,10 @@
-# Privacy Policy for IdeaPocket - Save to Thoughtstream
+# Privacy Policy for IdeaPocket - Save to Ideaflow
 
 *Last updated: June 20, 2025*
 
 ## 1. Overview
 
-IdeaPocket ("we", "our", or "the extension") is a browser extension designed to help you save articles and web content directly to your Thoughtstream account. We are committed to protecting your privacy and handling your data transparently. This privacy policy explains what information we collect, how it is used, and how it is safeguarded.
+IdeaPocket ("we", "our", or "the extension") is a browser extension designed to help you save articles and web content directly to your Ideaflow account. We are committed to protecting your privacy and handling your data transparently. This privacy policy explains what information we collect, how it is used, and how it is safeguarded.
 
 ## 2. Information We Collect and Why
 
@@ -12,7 +12,7 @@ To provide our service, we collect the following types of information:
 
 - **Account Information**: When you connect your account via our authentication provider (Auth0), we collect your **name and email address**. This information is used solely to identify your account and associate saved content with you.
 
-- **Saved Content**: When you choose to save a page, we collect the **URL, page title, and the full text and images of the article**. This is the core function of the extension, allowing a clean, readable version of the content to be stored in your Thoughtstream account.
+- **Saved Content**: When you choose to save a page, we collect the **URL, page title, and the full text and images of the article**. This is the core function of the extension, allowing a clean, readable version of the content to be stored in your Ideaflow account.
 
 - **Authentication Tokens**: To maintain a secure connection to your account without requiring you to log in repeatedly, we store encrypted authentication tokens in your browser's local storage.
 
@@ -20,7 +20,7 @@ To provide our service, we collect the following types of information:
 
 We believe in minimizing data sharing. We only share your information with essential third-party services that are critical to the extension's functionality:
 
-- **Thoughtstream/Ideaflow (`prod-api.ideaflow.app`)**: The content you save is sent to your personal Thoughtstream account for storage.
+- **Ideaflow (`prod-api.ideaflow.app`)**: The content you save is sent to your personal Ideaflow account for storage.
 - **Auth0 (`ideaflow.auth0.com`)**: Your account is managed via Auth0 for secure authentication.
 
 We **do not** sell, trade, or otherwise transfer your personal information to outside parties for marketing, advertising, or any other purpose. **We want to be very clear: we do not track your general browsing history.**
@@ -46,7 +46,7 @@ We are committed to securing your data. We implement the following technical mea
 
 Your data is retained for as long as your account is active. You have the following rights regarding your information:
 
-- **Access & Deletion**: You can access and delete your saved content at any time through your Thoughtstream account. You can clear all locally stored data by uninstalling the extension.
+- **Access & Deletion**: You can access and delete your saved content at any time through your Ideaflow account. You can clear all locally stored data by uninstalling the extension.
 - **Contact**: For any questions about your data or to exercise your rights, please contact us at the email address below.
 
 ## 7. Children's Privacy

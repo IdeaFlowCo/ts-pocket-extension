@@ -70,15 +70,15 @@ body {
   background: #f0f0f0;
 }
 
-/* Thoughtstream button styling - teal background like save button */
-.icon-btn.thoughtstream-btn {
+/* Ideaflow button styling - teal background like save button */
+.icon-btn.ideaflow-btn {
   background: #019AB0;
   color: white;
   border-radius: 8px;
   padding: 8px;
 }
 
-.icon-btn.thoughtstream-btn:hover {
+.icon-btn.ideaflow-btn:hover {
   background: #017a8c;
   color: white;
 }
