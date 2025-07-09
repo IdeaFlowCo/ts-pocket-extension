@@ -96,14 +96,22 @@ export class ApiClient {
   }
 
   async makeRequest(path, method = 'GET', body = null, options = {}) {
-    logger.debug(`API ${method} ${path}`, { hasBody: !!body });
+    logger.info(`🌐 API ${method} ${path}`, { 
+      hasBody: !!body,
+      bodySize: body ? JSON.stringify(body).length : 0,
+      timestamp: new Date().toISOString()
+    });
     
     const retries = options.retries ?? this.retryAttempts;
     
     for (let attempt = 0; attempt < retries; attempt++) {
       try {
+        logger.info('🔑 Getting access token...');
         const token = await getValidAccessToken();
-        logger.debug('Auth token status', { hasToken: !!token });
+        logger.info('🔑 Auth token status', { 
+          hasToken: !!token,
+          tokenLength: token?.length 
+        });
         
         const requestOptions = {
           method,
@@ -120,9 +128,21 @@ export class ApiClient {
         }
 
         const url = `${this.baseUrl}${path}`;
-        logger.debug('Making request', { url });
+        logger.info('🚀 Sending request', { 
+          url,
+          method,
+          attempt: attempt + 1,
+          maxRetries: retries
+        });
         
         const response = await this.fetchWithTimeout(url, requestOptions);
+        
+        logger.info('📡 Response received', {
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok,
+          url
+        });
         
         // Handle rate limiting response
         if (response.status === 429) {

@@ -1,11 +1,12 @@
 {
   "name": "ts-pocket-extension",
-  "version": "1.0.0",
+  "version": "1.0.5",
   "description": "A powerful Chrome extension that provides a Pocket-like experience for saving articles, web pages, and text selections to Ideaflow.",
   "main": "api-client.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "node esbuild.mjs"
+    "build": "node esbuild.mjs",
+    "zip": "npm run build && cd dist && zip -r ../ideapocket-production.zip . -x '*.DS_Store' && cd .. && echo '📦 Production zip created: ideapocket-production.zip'"
   },
   "repository": {
     "type": "git",

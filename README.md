@@ -56,10 +56,12 @@ A powerful Chrome extension that provides a Pocket-like experience for saving ar
 - **Method 2**: Use keyboard shortcut (Cmd+Shift+P on Mac, Ctrl+Shift+P on Windows/Linux)
 - **Method 3**: Right-click on any page and select "Save to IdeaPocket"
 
+Articles are automatically saved with #ideapocket and #article tags.
+
 ### Save Text Selection
 1. Select any text on a webpage
 2. Right-click and choose "Save Selection as Highlight"
-3. The selection is saved with a #highlight tag and preserves any links
+3. The selection is saved with #ideapocket and #highlight tags and preserves any links
 
 ### Add Tags
 - **Before saving**: Add tags in the input field before clicking save

@@ -2,8 +2,47 @@
 import CONFIG from './config.js';
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
-import logger from './logger.js';
 import Fuse from './fuse.mjs';
+
+// Logger that sends all logs to service worker
+const logger = {
+  info: (message, data) => {
+    chrome.runtime.sendMessage({ 
+      action: 'log', 
+      level: 'info', 
+      message, 
+      data,
+      source: 'popup'
+    });
+  },
+  error: (message, data) => {
+    chrome.runtime.sendMessage({ 
+      action: 'log', 
+      level: 'error', 
+      message, 
+      data,
+      source: 'popup'
+    });
+  },
+  warn: (message, data) => {
+    chrome.runtime.sendMessage({ 
+      action: 'log', 
+      level: 'warn', 
+      message, 
+      data,
+      source: 'popup'
+    });
+  },
+  debug: (message, data) => {
+    chrome.runtime.sendMessage({ 
+      action: 'log', 
+      level: 'debug', 
+      message, 
+      data,
+      source: 'popup'
+    });
+  }
+};
 
 // New helper function to prevent hangs in incompatible browsers
 async function runWithTimeout(promise, timeout = 1500) {
@@ -58,6 +97,9 @@ let lastSavedNoteId = null;
 let allSavedArticles = [];
 let pendingAction = null;
 let fuse = null; // Fuse.js instance
+let preSaveTags = [];
+let postSaveTags = [];
+let allHashtags = [];
 
 // Autocomplete state
 let availableHashtags = [];
@@ -381,7 +423,11 @@ function setupEventListeners() {
     }
   });
   
-  quickSaveBtn.addEventListener('click', handleQuickSave);
+  quickSaveBtn.addEventListener('click', () => {
+    console.log('🔴 SAVE BUTTON CLICKED - RAW EVENT');
+    logger.info('🔴 SAVE BUTTON CLICKED');
+    handleQuickSave();
+  });
   
   preSaveTagsInput.addEventListener('keypress', (e) => {
     if (e.key === 'Enter') {
@@ -649,66 +695,6 @@ function setupEventListeners() {
     pendingAction = null;
   });
   
-  const debugBtn = document.getElementById('debugBtn');
-  const debugInfo = document.getElementById('debugInfo');
-  const debugSection = debugBtn?.closest('.setting-item');
-  
-  const IS_DEV = !('update_url' in chrome.runtime.getManifest());
-  
-  if (debugSection && !IS_DEV) {
-    debugSection.style.display = 'none';
-  }
-  
-  if (debugBtn && IS_DEV) {
-    debugBtn.addEventListener('click', async () => {
-      try {
-        if (!debugInfo.classList.contains('hidden')) {
-          debugInfo.classList.add('hidden');
-          debugBtn.textContent = 'View Debug Logs';
-          return;
-        }
-        
-        const response = await chrome.runtime.sendMessage({ action: 'getLogs' });
-        const logs = response.logs || [];
-        
-        debugInfo.classList.remove('hidden');
-        debugBtn.textContent = 'Hide Debug Logs';
-        
-        let html = `<div style="margin-bottom: 10px;">
-          <strong>Logs:</strong> ${logs.length}
-        </div>`;
-        
-        logs.slice(-20).reverse().forEach(log => {
-          const levelColors = {
-            'ERROR': 'red',
-            'WARN': 'orange',
-            'INFO': 'green',
-            'DEBUG': 'blue'
-          };
-          const color = levelColors[log.level] || 'black';
-          
-          html += `<div style="margin-bottom: 5px;">
-            <span style="color: ${color}; font-weight: bold;">[${log.level}]</span>
-            <span style="color: #666;">[${log.source}]</span>
-            ${log.timestamp.split('T')[1].split('.')[0]} - ${log.message}
-            ${log.data && Object.keys(log.data).length > 0 ? 
-              `<br><span style="font-size: 11px; color: #666;">${JSON.stringify(log.data)}</span>` : ''}
-          </div>`;
-        });
-        
-        if (logs.length === 0) {
-          html += '<div>No logs found. Try saving an article.</div>';
-        }
-        
-        debugInfo.innerHTML = html;
-        
-      } catch (error) {
-        debugInfo.innerHTML = `<div style="color: red;">Error loading logs: ${error.message}</div>`;
-        debugInfo.classList.remove('hidden');
-      }
-    });
-  }
-  
   document.addEventListener('click', (e) => {
     if (!preSaveTagsInput.contains(e.target) && !preSaveTagsDropdown.contains(e.target)) {
       hideAutocomplete(preSaveTagsDropdown);
@@ -722,12 +708,16 @@ function setupEventListeners() {
 
 // Handle quick save
 async function handleQuickSave() {
+  logger.info('🚀 handleQuickSave called');
+  
   if (!isAuthenticated) {
+    logger.info('❌ User not authenticated');
     showStatus('Please login first', 'success');
     showView('settings');
     return;
   }
   
+  logger.info('✅ User is authenticated, proceeding with save');
   quickSaveBtn.disabled = true;
   quickSaveBtn.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Saving...</span>';
   
@@ -744,9 +734,21 @@ async function handleQuickSave() {
     
     const tagsArray = preSaveTags.map(tag => tag.startsWith('#') ? tag.slice(1) : tag);
     
+    logger.info('🚀 Sending save message to background', { 
+      action: 'save',
+      tags: tagsArray,
+      tagCount: tagsArray.length 
+    });
+    
     const response = await chromeApi.runtime.sendMessage({ 
       action: 'save',
       tags: tagsArray 
+    });
+    
+    logger.info('📡 Save response received from background', { 
+      response,
+      hasResponse: !!response,
+      success: response?.success 
     });
     
     if (!response) {
@@ -791,6 +793,7 @@ async function handleQuickSave() {
       }
     }
   } catch (error) {
+    logger.error('Save failed with exception', { error: error.message, stack: error.stack });
     showStatus('Failed to save', 'error');
     quickSaveBtn.disabled = false;
     quickSaveBtn.innerHTML = '<span class="btn-icon">📌</span><span class="btn-text">Save to Ideaflow</span>';

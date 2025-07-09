@@ -332,18 +332,31 @@ function calculateTokenPositions(tokens) {
 
 // Save article to Thoughtstream
 async function saveToThoughtstream(articleData, tags = []) {
-  log.info('saveToThoughtstream called - using /notes/top endpoint', {
+  log.info('🚀 saveToThoughtstream STARTED', {
+    timestamp: new Date().toISOString(),
     title: articleData?.title,
     url: articleData?.url,
-    tagCount: tags?.length || 0
+    hasContent: !!articleData?.content,
+    contentLength: articleData?.content?.length || 0,
+    tagCount: tags?.length || 0,
+    tags: tags
   });
 
   try {
     const noteId = generateShortId();
-    const userId = (await storageService.getUserInfo()).userId;
+    log.info('📝 Generated note ID', { noteId });
+    
+    const userInfo = await storageService.getUserInfo();
+    log.info('👤 User info retrieved', { 
+      hasUserId: !!userInfo?.userId,
+      userInfo: userInfo
+    });
+    
+    const userId = userInfo?.userId;
     const timestamp = new Date().toISOString();
 
     if (!userId) {
+      log.error('❌ NO USER ID FOUND');
       throw new Error('User ID not found. Please login again.');
     }
 
@@ -364,7 +377,7 @@ async function saveToThoughtstream(articleData, tags = []) {
     tokens.push(createLinkTokens(articleData.url));
 
     // Third token: Tags (moved to last line)
-    const initialTags = ['pocket', ...tags];
+    const initialTags = ['ideapocket', 'article', ...tags];
     const tagsContent = initialTags.flatMap(tag => ([
         { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
         { type: 'text', content: ' ', marks: [] }
@@ -378,6 +391,16 @@ async function saveToThoughtstream(articleData, tags = []) {
     });
 
     const finalTokens = calculateTokenPositions(tokens);
+    
+    log.info('📊 Token positions calculated', {
+      tokenCount: finalTokens.length,
+      tokens: finalTokens.map(t => ({
+        type: t.type,
+        contentType: t.content?.[0]?.type,
+        contentText: t.content?.[0]?.content?.substring(0, 50),
+        position: t.position
+      }))
+    });
 
     // Payload for /notes/top endpoint - no position needed
     const noteData = {
@@ -394,16 +417,42 @@ async function saveToThoughtstream(articleData, tags = []) {
       expansionSetting: 'auto'
     };
 
-    log.info('Note data prepared for /notes/top', { 
+    log.info('📦 Note data prepared for /notes/top', { 
       noteId: noteData.id,
       hasTokens: !!noteData.tokens,
       tokenCount: noteData.tokens?.length,
       firstToken: JSON.stringify(noteData.tokens?.[0]),
       allTokensHavePosition: noteData.tokens?.every(t => t.position && typeof t.position.start === 'number' && typeof t.position.end === 'number'),
-      userId: noteData.authorId
+      userId: noteData.authorId,
+      fullNoteData: JSON.stringify(noteData)
     });
 
-    const response = await apiClient.post('/notes/top', { note: noteData });
+    log.info('🌐 Making API request to /notes/top', {
+      endpoint: '/notes/top',
+      method: 'POST',
+      payloadSize: JSON.stringify({ note: noteData }).length
+    });
+    
+    let response;
+    try {
+      response = await apiClient.post('/notes/top', { note: noteData });
+      log.info('✅ API request successful', {
+        hasResponse: !!response,
+        responseType: typeof response,
+        responseKeys: response ? Object.keys(response) : [],
+        responseData: JSON.stringify(response)
+      });
+    } catch (apiError) {
+      log.error('❌ API REQUEST FAILED', {
+        error: apiError.message,
+        errorName: apiError.name,
+        errorDetails: apiError.details,
+        status: apiError.status,
+        response: apiError.response,
+        fullError: JSON.stringify(apiError)
+      });
+      throw apiError;
+    }
 
     // Debug logging to understand response structure
     log.info('API Response Debug', { 
@@ -416,33 +465,51 @@ async function saveToThoughtstream(articleData, tags = []) {
         responseKeys: response ? Object.keys(response) : []
     });
 
-    // Verify the note was created (response.data is still an array)
-    const createdNote = response?.data?.find(note => note.id === noteId);
-    if (createdNote) {
-        log.info('✅ SUCCESS: API confirmed save.', { 
-          noteId,
-          returnedId: createdNote.id,
-          hasPosition: !!createdNote.position,
-          position: createdNote.position 
-        });
-        return { noteId, response };
-    } else {
+    // Verify the note was created (tolerate server-side id rewrite)
+    const returnedNote = Array.isArray(response?.data) && response.data.length > 0
+      ? response.data.find(n => n.id === noteId) || response.data[0]
+      : null;
+
+    if (!returnedNote) {
         log.error('❌ FAILURE: API did not confirm save.', { sentNoteId: noteId, responseBody: response });
         throw new Error('API did not confirm save.');
     }
 
+    const finalNoteId = returnedNote.id;
+    log.info('✅ saveToThoughtstream SUCCESS', { 
+      sentNoteId: noteId, 
+      returnedId: finalNoteId,
+      timestamp: new Date().toISOString()
+    });
+    return { noteId: finalNoteId, response };
+
   } catch (error) {
-    log.error('saveToThoughtstream failed with unexpected error', { error: error.message, name: error.name });
+    log.error('❌ saveToThoughtstream FAILED', { 
+      timestamp: new Date().toISOString(),
+      error: error.message, 
+      name: error.name,
+      stack: error.stack,
+      details: error.details,
+      fullError: JSON.stringify(error)
+    });
     throw error;
   }
 }
 
 // Handle save action
 async function handleSave(tab, tags = []) {
-  log.info('Starting save process', { url: tab.url, tabId: tab.id });
+  log.info('🚀 handleSave STARTED', { 
+    timestamp: new Date().toISOString(),
+    url: tab.url, 
+    title: tab.title,
+    tabId: tab.id,
+    tags: tags,
+    tagCount: tags.length
+  });
   
   try {
     // Show saving badge
+    log.info('📌 Updating badge to saving state');
     await chromeApi.updateBadge(tab.id, '...', '#4CAF50', 0);
     
     // CONTENT EXTRACTION COMMENTED OUT - Only saving URL and tags for now
@@ -526,14 +593,21 @@ async function handleSave(tab, tags = []) {
     };
     
     // Save to Thoughtstream with tags
-    log.info('Calling saveToThoughtstream', { 
+    log.info('🚀 About to call saveToThoughtstream', { 
       hasContent: !!articleData.content,
-      tagsCount: tags.length 
+      contentLength: articleData.content?.length || 0,
+      tagsCount: tags.length,
+      tags: tags,
+      articleTitle: articleData.title,
+      articleUrl: articleData.url
     });
     
     const result = await saveToThoughtstream(articleData, tags);
     
-    log.info('Save completed', { noteId: result.noteId });
+    log.info('✅ saveToThoughtstream returned successfully', { 
+      noteId: result.noteId,
+      hasResponse: !!result.response
+    });
     
     // Store in local history with position and other metadata for updates
     const savedAt = new Date().toISOString();
@@ -543,7 +617,7 @@ async function handleSave(tab, tags = []) {
     await storageService.addSavedArticle({
       ...articleData,
       noteId: result.noteId,
-      tags: ['pocket', ...tags], // Include default pocket tag
+      tags: ['ideapocket', 'article', ...tags], // Include default ideapocket and article tags
       savedAt: savedAt,
       position: position, // Our position (for internal use)
       thoughtstreamPosition: thoughtstreamPosition, // Thoughtstream's position (for API calls)
@@ -552,7 +626,12 @@ async function handleSave(tab, tags = []) {
     });
     
     // Show success badge
+    log.info('📌 Updating badge to success state');
     await chromeApi.updateBadge(tab.id, '✓', '#4CAF50');
+    
+    log.info('✅ handleSave COMPLETED SUCCESSFULLY', {
+      noteId: result.noteId
+    });
     
     return { 
       success: true, 
@@ -560,11 +639,13 @@ async function handleSave(tab, tags = []) {
       warning: null
     };
   } catch (error) {
-    log.error('Failed to save article', {
+    log.error('❌ handleSave FAILED', {
+      timestamp: new Date().toISOString(),
       error: error.message,
       type: error.name,
       stack: error.stack,
-      details: error.details
+      details: error.details,
+      fullError: JSON.stringify(error)
     });
     
     // Show error badge immediately
@@ -577,7 +658,7 @@ async function handleSave(tab, tags = []) {
         const queueLength = await offlineQueue.add(articleData, tags, {
           id: generateShortId(),
           authorId: (await storageService.getUserInfo()).userId,
-          ...result // Use the already formatted result
+          ...(result || {}) // Use the already formatted result if available
         });
         
         // Show offline badge with count
@@ -795,7 +876,7 @@ async function handleSaveSelection(tab, selectedText, pageUrl) {
       images: [],
       savedAt: selectionData.savedAt,
       noteId: result.noteId,
-      tags: ['highlight'],
+      tags: ['ideapocket', 'highlight'],
       isHighlight: true,
       originalPageTitle: selectionData.title,  // Store original title for reference
       position: positionValue,
@@ -896,7 +977,7 @@ async function handleSaveSelectionWithLinks(tab, selectionData) {
       images: enrichedData.tweetInfo?.images || [],
       savedAt: enrichedData.savedAt,
       noteId: result.noteId,
-      tags: ['highlight'],
+      tags: ['ideapocket', 'highlight'],
       isHighlight: true,
       originalPageTitle: enrichedData.title,
       platform: enrichedData.platform,
@@ -972,11 +1053,13 @@ async function saveSelectionToThoughtstream(selectionData) {
       depth: 0
     });
     
-    // Sixth paragraph: #highlight tag
+    // Sixth paragraph: #ideapocket #highlight tags
     tokens.push({
       type: 'paragraph',
       tokenId: generateShortId(),
       content: [
+        { type: 'hashtag', content: '#ideapocket' },
+        { type: 'text', content: ' ', marks: [] },
         { type: 'hashtag', content: '#highlight' },
         { type: 'text', content: ' ', marks: [] }
       ],
@@ -1115,14 +1198,18 @@ async function saveSelectionToThoughtstream(selectionData) {
 
     const response = await apiClient.post('/notes/top', { note: noteData });
 
-    const createdNote = response?.data?.find(note => note.id === noteId);
-    if (createdNote) {
-        log.info('✅ SUCCESS: Selection saved.', { noteId });
-        return { noteId, response };
-    } else {
+    const returnedNote = Array.isArray(response?.data) && response.data.length > 0
+      ? response.data.find(n => n.id === noteId) || response.data[0]
+      : null;
+
+    if (!returnedNote) {
         log.error('❌ FAILURE: Selection save not confirmed.', { sentNoteId: noteId });
         throw new Error('API did not confirm selection save.');
     }
+
+    const finalNoteId = returnedNote.id;
+    log.info('✅ SUCCESS: Selection saved.', { sentNoteId: noteId, returnedId: finalNoteId });
+    return { noteId: finalNoteId, response };
 
   } catch (error) {
     log.error('saveSelectionToThoughtstream failed', { error: error.message });
@@ -1134,14 +1221,6 @@ async function saveSelectionToThoughtstream(selectionData) {
 chromeApi.runtime.onMessage.addListener((request, sender, sendResponse) => {
   log.info('Message received', { action: request.action, from: sender.tab?.url || 'extension' });
   
-  // Handle log requests immediately (don't need initialization)
-  if (request.action === 'getLogs') {
-    sendResponse({ 
-      success: true, 
-      logs: logger.getLogs(request.filter || {})
-    });
-    return true;
-  }
   
   // Ensure extension is initialized before handling messages
   ensureInitialized()
@@ -1156,25 +1235,69 @@ chromeApi.runtime.onMessage.addListener((request, sender, sendResponse) => {
 async function handleMessage(request, sender, sendResponse) {
   log.info('Handling message', { action: request.action });
   
+  // Handle log messages from popup
+  if (request.action === 'log') {
+    const source = request.source || 'unknown';
+    const prefix = `[${source.toUpperCase()}]`;
+    
+    switch(request.level) {
+      case 'info':
+        log.info(`${prefix} ${request.message}`, request.data);
+        break;
+      case 'error':
+        log.error(`${prefix} ${request.message}`, request.data);
+        break;
+      case 'warn':
+        log.warn(`${prefix} ${request.message}`, request.data);
+        break;
+      case 'debug':
+        log.debug(`${prefix} ${request.message}`, request.data);
+        break;
+    }
+    return false; // No response needed
+  }
+  
   if (request.action === 'save') {
     (async () => {
       try {
-        log.info('Save action - getting active tab');
+        log.info('🚀 SAVE ACTION STARTED', {
+          timestamp: new Date().toISOString(),
+          tags: request.tags || [],
+          tagCount: (request.tags || []).length
+        });
+        
         const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
-        log.info('Active tab found', { url: tabs[0]?.url });
+        
+        if (!tabs || tabs.length === 0) {
+          log.error('❌ NO ACTIVE TAB FOUND');
+          sendResponse({ success: false, error: 'No active tab found' });
+          return;
+        }
+        
+        log.info('📑 Active tab found', { 
+          url: tabs[0].url,
+          title: tabs[0].title,
+          tabId: tabs[0].id
+        });
         
         const tags = request.tags || [];
+        log.info('🏷️ Calling handleSave with tags', { tags });
+        
         const result = await handleSave(tabs[0], tags);
         
-        log.info('handleSave completed, sending response', { 
+        log.info('✅ handleSave completed successfully', { 
           success: result.success,
-          hasNoteId: !!result.noteId 
+          hasNoteId: !!result.noteId,
+          noteId: result.noteId,
+          warning: result.warning
         });
         sendResponse(result);
       } catch (error) {
-        log.info('Save action failed', { 
+        log.error('❌ SAVE ACTION FAILED', { 
           error: error.message,
-          stack: error.stack 
+          errorName: error.name,
+          stack: error.stack,
+          details: error.details
         });
         sendResponse({ success: false, error: error.message });
       }
