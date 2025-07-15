@@ -9,8 +9,8 @@ const outdir = 'dist';
 console.log(`Cleaning directory: ${outdir}`);
 // No rm -rf here, esbuild has a clean option if needed, or we handle it in prod script.
 
-// 2. Bundle all JavaScript entry points
-console.log('Bundling JavaScript...');
+// 2. Bundle all TypeScript/JavaScript entry points
+console.log('Bundling TypeScript/JavaScript...');
 const entryPoints = [
   'background.js',
   'popup.js',
@@ -19,20 +19,47 @@ const entryPoints = [
   'twitter-extractor.js',
 ];
 
+// Helper function to find TypeScript or JavaScript file
+function findEntryFile(baseName) {
+  const extensions = ['.ts', '.tsx', '.js', '.jsx'];
+  for (const ext of extensions) {
+    const fileName = baseName.replace(/\.[^.]+$/, '') + ext;
+    try {
+      if (fs.existsSync(fileName)) {
+        return fileName;
+      }
+    } catch (e) {
+      // Continue trying
+    }
+  }
+  return baseName; // fallback to original
+}
+
 await Promise.all(
-  entryPoints.map(entryPoint =>
-    esbuild.build({
-      entryPoints: [entryPoint],
+  entryPoints.map(entryPoint => {
+    const actualEntryPoint = findEntryFile(entryPoint);
+    return esbuild.build({
+      entryPoints: [actualEntryPoint],
       bundle: true,
       outfile: `${outdir}/${entryPoint}`,
       format: 'iife',
       target: 'chrome100',
       logLevel: 'info',
-      loader: { '.js': 'jsx' },
-    })
-  )
+      sourcemap: true,
+      loader: { 
+        '.js': 'jsx',
+        '.ts': 'tsx',
+        '.tsx': 'tsx',
+        '.jsx': 'jsx'
+      },
+      resolveExtensions: ['.ts', '.tsx', '.js', '.jsx', '.json'],
+      define: {
+        'process.env.NODE_ENV': '"production"'
+      }
+    });
+  })
 ).catch(() => process.exit(1));
-console.log('JavaScript bundled successfully.');
+console.log('TypeScript/JavaScript bundled successfully.');
 
 // 3. Copy all static assets to the dist folder
 console.log('Copying static assets...');

@@ -5,9 +5,13 @@
   "main": "api-client.js",
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1",
-    "build": "node esbuild.mjs && cd dist && zip -r ../ideapocket-production.zip . -x '*.DS_Store' && cd .. && echo '📦 Production zip created: ideapocket-production.zip'",
+    "build": "npm run type-check && node esbuild.mjs && cd dist && zip -r ../ideapocket-production.zip . -x '*.DS_Store' && cd .. && echo '📦 Production zip created: ideapocket-production.zip'",
     "build:dev": "node esbuild.mjs",
-    "zip": "npm run build"
+    "zip": "npm run build",
+    "type-check": "tsc --noEmit",
+    "type-check:watch": "tsc --noEmit --watch",
+    "lint": "eslint . --max-warnings 0",
+    "lint:fix": "eslint . --fix"
   },
   "repository": {
     "type": "git",
@@ -22,8 +26,16 @@
   },
   "homepage": "https://github.com/IdeaFlowCo/ts-pocket-extension#readme",
   "devDependencies": {
+    "@types/chrome": "^0.1.0",
+    "@types/webextension-polyfill": "^0.12.3",
+    "@typescript-eslint/eslint-plugin": "^8.37.0",
+    "@typescript-eslint/parser": "^8.37.0",
     "esbuild": "^0.25.6",
+    "eslint": "^8.57.0",
+    "eslint-import-resolver-typescript": "^4.4.4",
+    "eslint-plugin-import": "^2.32.0",
     "fs-extra": "^11.3.0",
-    "glob": "^11.0.3"
+    "glob": "^11.0.3",
+    "typescript": "^5.8.3"
   }
 }

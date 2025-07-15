@@ -200,7 +200,7 @@ export class ApiClient {
           });
         } catch (jsonError) {
           logger.error('Failed to parse JSON response', { error: jsonError.message, status: response.status });
-          throw new TsPocketError(
+          throw new IdeaPocketError(
             'Invalid JSON response from API',
             'PARSE_ERROR',
             { status: response.status, path, method }
