@@ -1,3 +1,10 @@
+/* eslint-disable @typescript-eslint/explicit-module-boundary-types */
+// ---------------------------------------------------------------------------
+// Global flags for initialization status (used by legacy code below).
+// NOTE: This will be removed once background.ts fully relies on background/init.ts
+// ---------------------------------------------------------------------------
+let isInitialized = false;
+let initializationPromise: Promise<void> | null = null;
 // Background script for IdeaPocket Chrome Extension
 import { loginWithAuth0, logout, isLoggedIn } from './auth.js';
 import CONFIG from './config';
@@ -11,6 +18,7 @@ import { bootstrap as commandsBootstrap } from './background/commands';
 import { bootstrap as saveBootstrap } from './background/save';
 import { bootstrap as selectionBootstrap } from './background/selection';
 import { bootstrap as messagingBootstrap } from './background/messaging';
+
 
 // Call bootstraps (order currently not important)
 initBootstrap();
@@ -576,7 +584,7 @@ async function initializeExtension() {
     
     // Check authentication status
     const isAuthenticated = await isLoggedIn();
-    log.info('Authentication status:', isAuthenticated);
+    log.info('Authentication status', { isAuthenticated });
     
     // Check for queued offline saves
     const queueStatus = await offlineQueue.getQueueStatus();
@@ -929,6 +937,11 @@ async function saveToThoughtstream(articleData, tags = []) {
 
 // Handle save action
 async function handleSave(tab, tags = []) {
+
+  // Declare variables outside try so they are visible in catch blocks
+  let articleData: any;
+  let result: any;
+
   log.info('🚀 handleSave STARTED', { 
     timestamp: new Date().toISOString(),
     url: tab.url, 
@@ -1011,7 +1024,7 @@ async function handleSave(tab, tags = []) {
     const pageTitle = await extractPageTitle(tab);
     
     // Create article data with extracted title
-    const articleData = {
+    articleData = {
       title: pageTitle,
       url: tab.url,
       description: '',
@@ -1033,7 +1046,7 @@ async function handleSave(tab, tags = []) {
       articleUrl: articleData.url
     });
     
-    const result = await saveToThoughtstream(articleData, tags);
+    result = await saveToThoughtstream(articleData, tags);
     
     log.info('✅ saveToThoughtstream returned successfully', { 
       noteId: result.noteId,
@@ -1214,7 +1227,7 @@ async function updateNoteWithTags(noteId, tags) {
     });
     
     // Update the note using upsert endpoint (wrap array in notes object)
-    const response = await apiClient.post('/notes', { notes: [updateData] });
+    const response: any = await apiClient.post<any>('/notes', { notes: [updateData] });
     
     // DEBUG: Log the exact response we got
     log.info('UPDATE RESPONSE DEBUG', {
@@ -1226,7 +1239,7 @@ async function updateNoteWithTags(noteId, tags) {
     });
     
     // Check if we got a successful response from upsert
-    const updatedNote = response?.data?.find?.(note => note.id === noteId) || response?.data?.[0];
+    const updatedNote = (response as any)?.data?.find?.((note: any) => note.id === noteId) || (response as any)?.data?.[0];
     if (!updatedNote) {
       log.error('UPDATE FAILED - No updated note in response', {
         responseKeys: Object.keys(response || {}),
@@ -1629,8 +1642,9 @@ async function saveSelectionToThoughtstream(selectionData) {
 
     const response = await apiClient.post('/notes/top', { note: noteData });
 
-    const returnedNote = Array.isArray(response?.data) && response.data.length > 0
-      ? response.data.find(n => n.id === noteId) || response.data[0]
+    const resAny: any = response as any;
+    const returnedNote = Array.isArray(resAny?.data) && resAny.data.length > 0
+      ? resAny.data.find(n => n.id === noteId) || resAny.data[0]
       : null;
 
     if (!returnedNote) {

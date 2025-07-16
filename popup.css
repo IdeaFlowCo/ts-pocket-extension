@@ -238,6 +238,13 @@ body {
   margin-bottom: 12px;
 }
 
+.saved-message .saved-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 220px; /* will shrink naturally in flex container */
+}
+
 .check-icon {
   font-size: 20px;
   margin-right: 8px;
@@ -270,6 +277,26 @@ body {
 .open-saved-note-btn svg {
   width: 14px;
   height: 14px;
+}
+
+/* Position header buttons inside post-save state */
+.open-saved-note-btn.header-btn {
+  position: absolute;
+  top: 8px;
+  right: 44px; /* leaves space for the × button */
+}
+
+/* Variant for pages that were already saved before the popup opened */
+.post-save-options.already-saved {
+  background: #f1faf1;
+}
+/* Hide the big checkmark icon in subdued mode */
+.post-save-options.already-saved .check-icon {
+  display: none;
+}
+/* Slightly adjust spacing when icon is gone */
+.post-save-options.already-saved .saved-message {
+  margin-left: 0;
 }
 
 /* Tags Section */

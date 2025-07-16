@@ -11,15 +11,16 @@
             <!-- Header -->
             <div class="header">
                 <h1>
-                    <img src="icon-48.png" alt="IdeaPocket" class="header-icon" />
+                    <img
+                        src="icon-48.png"
+                        alt="IdeaPocket"
+                        class="header-icon"
+                    />
                     IdeaPocket
                 </h1>
                 <div class="header-buttons">
                     <div class="tooltip">
-                        <button
-                            id="ideaflowBtn"
-                            class="icon-btn ideaflow-btn"
-                        >
+                        <button id="ideaflowBtn" class="icon-btn ideaflow-btn">
                             <!-- Heroicons: home -->
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -40,10 +41,7 @@
                         <span class="tooltip-text">Go to My Ideaflow</span>
                     </div>
                     <div class="tooltip">
-                        <button
-                            id="importBtn"
-                            class="icon-btn"
-                        >
+                        <button id="importBtn" class="icon-btn">
                             <!-- Heroicons: arrow-down-tray (download/import) -->
                             <svg
                                 xmlns="http://www.w3.org/2000/svg"
@@ -108,14 +106,16 @@
                             class="tag-pills-container"
                         ></div>
                         <div class="tags-input-container">
-                            <div class="tooltip" style="width: 100%;">
+                            <div class="tooltip" style="width: 100%">
                                 <input
                                     type="text"
                                     id="preSaveTagsInput"
                                     class="tags-input"
                                     placeholder="Add tags..."
                                 />
-                                <span class="tooltip-text">Delimiters: space, commas, semicolons</span>
+                                <span class="tooltip-text"
+                                    >Delimiters: space, commas, semicolons</span
+                                >
                             </div>
                             <button
                                 id="clearPreSaveTagsBtn"
@@ -153,11 +153,36 @@
                         </span>
                         <span class="btn-text">Save to Ideaflow</span>
                     </button>
-                    <span id="saveButtonTooltip" class="tooltip-text">Loading shortcut...</span>
+                    <span id="saveButtonTooltip" class="tooltip-text"
+                        >Loading shortcut...</span
+                    >
                 </div>
 
                 <!-- Post-Save Options (hidden by default) -->
                 <div id="postSaveOptions" class="post-save-options hidden">
+                    <!-- Header buttons: open in Ideaflow & close -->
+                    <button
+                        id="openSavedNoteBtn"
+                        class="open-saved-note-btn header-btn"
+                        title="Open in Ideaflow"
+                    >
+                        <svg
+                            xmlns="http://www.w3.org/2000/svg"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                            stroke-width="2"
+                            stroke="currentColor"
+                            width="14"
+                            height="14"
+                        >
+                            <path
+                                stroke-linecap="round"
+                                stroke-linejoin="round"
+                                d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
+                            />
+                        </svg>
+                    </button>
+
                     <button
                         id="closePostSaveBtn"
                         class="close-post-save-btn"
@@ -167,28 +192,7 @@
                     </button>
                     <div class="saved-message">
                         <span class="check-icon">✓</span>
-                        <span>Saved to Ideaflow!</span>
-                        <button
-                            id="openSavedNoteBtn"
-                            class="open-saved-note-btn"
-                            title="Open in Ideaflow"
-                        >
-                            <svg
-                                xmlns="http://www.w3.org/2000/svg"
-                                fill="none"
-                                viewBox="0 0 24 24"
-                                stroke-width="2"
-                                stroke="currentColor"
-                                width="14"
-                                height="14"
-                            >
-                                <path
-                                    stroke-linecap="round"
-                                    stroke-linejoin="round"
-                                    d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25"
-                                />
-                            </svg>
-                        </button>
+                        <span class="saved-text">Saved to Ideaflow!</span>
                     </div>
 
                     <!-- Tags Input -->
@@ -199,14 +203,17 @@
                                 class="tag-pills-container"
                             ></div>
                             <div class="tags-input-container">
-                                <div class="tooltip" style="width: 100%;">
+                                <div class="tooltip" style="width: 100%">
                                     <input
                                         type="text"
                                         id="tagsInput"
                                         class="tags-input"
                                         placeholder="Add tags..."
                                     />
-                                    <span class="tooltip-text">Delimiters: space, commas, semicolons</span>
+                                    <span class="tooltip-text"
+                                        >Delimiters: space, commas,
+                                        semicolons</span
+                                    >
                                 </div>
                                 <button
                                     id="clearTagsBtn"
@@ -454,7 +461,6 @@
                             Delete All Saved Articles
                         </button>
                     </div>
-
                 </div>
             </div>
 

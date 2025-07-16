@@ -105,6 +105,59 @@ let allHashtags = [];
 let availableHashtags = [];
 let currentFocus = -1;
 
+// Track whether the current page has already been saved
+let alreadySavedForCurrentPage = false;
+
+// Detect if the current tab URL is already in savedArticles and switch the UI
+async function checkCurrentPageAlreadySaved() {
+  try {
+    const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
+    if (!tabs || tabs.length === 0) return;
+    const currentUrl = tabs[0].url;
+    if (!currentUrl) return;
+
+    const currentNorm = normalizeUrl(currentUrl);
+
+    // Ensure we have the latest saved articles list
+    if (allSavedArticles.length === 0) {
+      try {
+        const saved = await storageService.getSavedArticles();
+        allSavedArticles = saved || [];
+      } catch (e) {
+        logger.error('Failed to fetch saved articles for already-saved check', { error: e.message });
+      }
+    }
+
+    const match = allSavedArticles.find(a => normalizeUrl(a.url) === currentNorm);
+    if (!match) return;
+
+    alreadySavedForCurrentPage = true;
+    lastSavedNoteId = match.noteId;
+
+    // Switch view to the subdued post-save state
+    quickSaveBtn.classList.add('hidden');
+    document.querySelector('.pre-save-tags').classList.add('hidden');
+    postSaveOptions.classList.remove('hidden');
+    postSaveOptions.classList.add('already-saved');
+
+    // Update saved-message text to abbreviated page title
+    try {
+      const savedMsg = postSaveOptions.querySelector('.saved-message');
+      if (savedMsg) {
+        const titleSpan = savedMsg.querySelectorAll('span')[1];
+        if (titleSpan) {
+          const rawTitle = tabs[0].title || tabs[0].url || 'Saved';
+          titleSpan.textContent = rawTitle;
+        }
+      }
+    } catch (e) {
+      logger.error('Failed to set abbreviated saved-title', { error: e.message });
+    }
+  } catch (err) {
+    logger.error('checkCurrentPageAlreadySaved failed', { error: err.message });
+  }
+}
+
 // Initialize popup
 document.addEventListener('DOMContentLoaded', async () => {
   logger.info('Popup loaded', { fuseAvailable: typeof Fuse !== 'undefined' });
@@ -144,6 +197,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     await runWithTimeout(updateSaveButtonTooltip());
   } catch (e) {
     logger.error("Updating tooltip failed or timed out", { error: e.message });
+  }
+
+  // --- Check if the current page was already saved and show subdued state if so ---
+  try {
+    await runWithTimeout(checkCurrentPageAlreadySaved());
+  } catch (e) {
+    logger.error('Already-saved check failed or timed out', { error: e.message });
   }
 
   // This is now guaranteed to be called
@@ -1394,3 +1454,19 @@ function setActiveItem(items) {
     item.classList.toggle('highlighted', index === currentFocus);
   });
 };
+
+// 80/20 URL normalisation for matching (scheme-insensitive, strip www., trim trailing slash, ignore query/hash)
+function normalizeUrl(rawUrl) {
+  try {
+    const urlObj = new URL(rawUrl);
+    let host = urlObj.hostname.toLowerCase();
+    if (host.startsWith('www.')) host = host.slice(4);
+    let path = urlObj.pathname.replace(/\/$/, ''); // remove trailing slash
+    // Special case: if path is empty string, keep as '/', so two root URLs match
+    if (path === '') path = '/';
+    return host + path;
+  } catch {
+    // Fallback to raw string if parsing fails
+    return rawUrl;
+  }
+}
