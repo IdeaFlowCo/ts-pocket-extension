@@ -777,38 +777,37 @@ async function handleQuickSave() {
       quickSaveBtn.classList.add('hidden');
       postSaveOptions.classList.remove('hidden');
       
-      // Auto-fade from "Saved!" to article title after 2 seconds
+      // Simple fade transition from "Saved!" to article title after 3 seconds
       const savedMessage = postSaveOptions.querySelector('.saved-message');
       const savedText = savedMessage.querySelector('.saved-text');
       if (savedMessage && savedText && !postSaveOptions.classList.contains('already-saved')) {
         setTimeout(() => {
-          logger.info('🎭 Starting fade-to-title animation');
-          // Reset animation state first
-          savedMessage.classList.remove('fade-to-title');
-          // Force reflow to ensure class removal takes effect
-          savedMessage.offsetHeight;
-          // Add the animation class
-          savedMessage.classList.add('fade-to-title');
-          // Change text at the fade midpoint
+          logger.info('🎭 Starting text transition');
+          
+          // Start fade out
+          savedText.classList.add('changing');
+          
+          // Change text during fade
           setTimeout(() => {
-            logger.info('🎭 Changing text at animation midpoint');
             const pageTitle = document.title || 'Current Page';
-            // Calculate space reserved for the open button
             const openBtn = postSaveOptions.querySelector('.open-saved-note-btn');
-            const reservedSpace = openBtn ? openBtn.offsetWidth + 20 : 60; // 20px for margins
+            const reservedSpace = openBtn ? openBtn.offsetWidth + 20 : 60;
             const savedMessageContainer = savedMessage.parentElement || savedMessage;
             const truncatedTitle = truncateToFit(pageTitle, savedMessageContainer, reservedSpace);
+            
             savedText.textContent = truncatedTitle;
-            // Update the tooltip text to show the full title
+            
+            // Update tooltip
             const tooltipText = savedText.parentElement.querySelector('.tooltip-text');
             if (tooltipText) {
               tooltipText.textContent = pageTitle;
             }
+            
+            // Fade back in
+            savedText.classList.remove('changing');
             logger.info('🎭 Text changed to:', truncatedTitle);
-          }, 1500); // 1.5s to midpoint
-        }, 2000);
-      } else {
-        logger.info('🎭 Animation skipped - elements not found or already-saved state');
+          }, 150); // Half the transition duration
+        }, 3000);
       }
         
       loadRecentSaves();
