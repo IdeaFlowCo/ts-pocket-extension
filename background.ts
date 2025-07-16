@@ -1,6 +1,6 @@
 // Background script for IdeaPocket Chrome Extension
 import { loginWithAuth0, logout, isLoggedIn } from './auth.js';
-import CONFIG from './config.ts';
+import CONFIG from './config';
 import apiClient, { ContentExtractionError } from './api-client';
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
