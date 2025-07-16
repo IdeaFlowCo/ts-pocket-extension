@@ -63,17 +63,13 @@ const settingsBtn = document.getElementById('settingsBtn');
 const backBtn = document.getElementById('backBtn');
 const authBtn = document.getElementById('authBtn');
 const tagsInput = document.getElementById('tagsInput');
-const preSaveTagsInput = document.getElementById('preSaveTagsInput');
 const recentList = document.getElementById('recentList');
 const saveStatus = document.getElementById('saveStatus');
 const authStatus = document.getElementById('authStatus');
 const postSaveOptions = document.getElementById('postSaveOptions');
-const addTagsBtn = document.getElementById('addTagsBtn');
 const searchInput = document.getElementById('searchInput');
 const clearSearchBtn = document.getElementById('clearSearchBtn');
-const clearPreSaveTagsBtn = document.getElementById('clearPreSaveTagsBtn');
 const clearTagsBtn = document.getElementById('clearTagsBtn');
-const preSaveTagsPills = document.getElementById('preSaveTagsPills');
 const tagsPills = document.getElementById('tagsPills');
 const deleteAllBtn = document.getElementById('deleteAllBtn');
 const confirmModal = document.getElementById('confirmModal');
@@ -86,9 +82,10 @@ const importSettingsBtn = document.getElementById('importSettingsBtn');
 const importFileBtn = document.getElementById('importFileBtn');
 const importFileInput = document.getElementById('importFileInput');
 const importStatus = document.getElementById('importStatus');
+const openSavedNoteBtn = document.getElementById('openSavedNoteBtn');
+const deleteSavedNoteBtn = document.getElementById('deleteSavedNoteBtn');
 
 // Autocomplete elements
-const preSaveTagsDropdown = document.getElementById('preSaveTagsDropdown');
 const tagsDropdown = document.getElementById('tagsDropdown');
 
 // State
@@ -97,8 +94,10 @@ let lastSavedNoteId = null;
 let allSavedArticles = [];
 let pendingAction = null;
 let fuse = null; // Fuse.js instance
-let preSaveTags = [];
-let postSaveTags = [];
+let currentTags = [];
+let saveTagsTimeout = null;
+let shimmerTimeout = null;
+let lastTypingTime = 0;
 let allHashtags = [];
 
 // Autocomplete state
@@ -136,7 +135,6 @@ async function checkCurrentPageAlreadySaved() {
 
     // Switch view to the subdued post-save state
     quickSaveBtn.classList.add('hidden');
-    document.querySelector('.pre-save-tags').classList.add('hidden');
     postSaveOptions.classList.remove('hidden');
     postSaveOptions.classList.add('already-saved');
 
@@ -144,10 +142,18 @@ async function checkCurrentPageAlreadySaved() {
     try {
       const savedMsg = postSaveOptions.querySelector('.saved-message');
       if (savedMsg) {
-        const titleSpan = savedMsg.querySelectorAll('span')[1];
-        if (titleSpan) {
+        const savedTextSpan = savedMsg.querySelector('.saved-text');
+        const tooltipTextSpan = savedMsg.querySelector('.tooltip-text');
+        if (savedTextSpan) {
           const rawTitle = tabs[0].title || tabs[0].url || 'Saved';
-          titleSpan.textContent = rawTitle;
+          // Calculate space reserved for the open button (approximate)
+          const openBtn = postSaveOptions.querySelector('.open-saved-note-btn');
+          const reservedSpace = openBtn ? openBtn.offsetWidth + 20 : 60; // 20px for margins
+          const truncatedTitle = truncateToFit(rawTitle, savedMsg, reservedSpace);
+          savedTextSpan.textContent = truncatedTitle;
+          if (tooltipTextSpan) {
+            tooltipTextSpan.textContent = rawTitle;
+          }
         }
       }
     } catch (e) {
@@ -397,23 +403,28 @@ function displayRecentSaves(articles) {
     
     const articleId = article.noteId || article.id || article.url;
     const typeIndicator = article.isHighlight 
-      ? '<span class="highlight-indicator" title="Text selection">📌</span>' 
-      : '<span class="article-indicator" title="Article">📄</span>';
+      ? '<div class="tooltip inline-tooltip"><span class="highlight-indicator" aria-label="Text selection">📌</span><span class="tooltip-text">Text selection</span></div>' 
+      : '<div class="tooltip inline-tooltip"><span class="article-indicator" aria-label="Article">📄</span><span class="tooltip-text">Article</span></div>';
     
     const displayContent = article.isHighlight && article.description
       ? `<div class="recent-item-description">${escapeHtml(article.description)}</div>`
       : `<div class="recent-item-url">${escapeHtml(domain)}</div>`;
     
+    const titleText = escapeHtml(article.isHighlight 
+      ? (article.title && article.title.trim() && article.title !== 'Untitled' ? article.title : domain)
+      : article.title);
+    
     return `
       <div class="recent-item ${article.isHighlight ? 'is-highlight' : ''} ${article.hasLinks ? 'has-links' : ''}" data-url="${escapeHtml(article.url)}" data-note-id="${escapeHtml(articleId)}">
-        <div class="recent-item-title">${typeIndicator}${escapeHtml(article.isHighlight 
-          ? (article.title && article.title.trim() && article.title !== 'Untitled' ? article.title : domain)
-          : article.title)}</div>
+        <div class="recent-item-title">
+          ${typeIndicator}
+          <span class="title-text">${titleText}</span>
+        </div>
         ${displayContent}
         ${tags}
         <div class="recent-item-time">${escapeHtml(timeAgo)}</div>
         <div class="tooltip">
-          <button class="open-note-btn" data-note-id="${escapeHtml(articleId)}">
+          <button class="open-note-btn" data-note-id="${escapeHtml(articleId)}" aria-label="Open in My Ideaflow">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" width="14" height="14">
               <path stroke-linecap="round" stroke-linejoin="round" d="M13.5 6H5.25A2.25 2.25 0 0 0 3 8.25v10.5A2.25 2.25 0 0 0 5.25 21h10.5A2.25 2.25 0 0 0 18 18.75V10.5m-10.5 6L21 3m0 0h-5.25M21 3v5.25" />
             </svg>
@@ -421,7 +432,7 @@ function displayRecentSaves(articles) {
           <span class="tooltip-text">Open in My Ideaflow</span>
         </div>
         <div class="tooltip">
-          <button class="delete-btn" data-note-id="${escapeHtml(articleId)}">×</button>
+          <button class="delete-btn" data-note-id="${escapeHtml(articleId)}" aria-label="Delete Article">×</button>
           <span class="tooltip-text">Delete Article</span>
         </div>
       </div>
@@ -489,68 +500,21 @@ function setupEventListeners() {
     handleQuickSave();
   });
   
-  preSaveTagsInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const inputText = preSaveTagsInput.value.trim();
-      if (inputText) {
-        const normalizedTag = inputText.startsWith('#') ? inputText : `#${inputText}`;
-        if (!preSaveTags.includes(normalizedTag)) {
-          preSaveTags.push(normalizedTag);
-          renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
-        }
-        preSaveTagsInput.value = '';
-        if (preSaveTags.length === 0) {
-          clearPreSaveTagsBtn.classList.add('hidden');
-        }
-      }
-    }
-  });
   
-  preSaveTagsInput.addEventListener('input', (e) => {
-    const value = e.target.value;
-    if (value.includes(' ') || value.includes(',') || value.includes(';')) {
-      const parts = value.split(/[\s,;]+/);
-      const completedTags = parts.slice(0, -1).filter(tag => tag.trim().length > 0);
-      const remainingText = parts[parts.length - 1] || '';
-      completedTags.forEach(tag => {
-        const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
-        if (!preSaveTags.includes(normalizedTag)) {
-          preSaveTags.push(normalizedTag);
-        }
-      });
-      renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
-      preSaveTagsInput.value = remainingText;
-    }
-    showAutocomplete(preSaveTagsInput, preSaveTagsDropdown, preSaveTagsInput.value);
-    if (preSaveTagsInput.value.trim() || preSaveTags.length > 0) {
-      clearPreSaveTagsBtn.classList.remove('hidden');
-    } else {
-      clearPreSaveTagsBtn.classList.add('hidden');
-    }
-  });
-  
-  preSaveTagsInput.addEventListener('keydown', (e) => {
-    if (!preSaveTagsDropdown.classList.contains('hidden')) {
-      handleAutocompleteKeydown(e, preSaveTagsInput, preSaveTagsDropdown);
-    }
-  });
-  
-  preSaveTagsDropdown.addEventListener('click', (e) => {
-    if (e.target.classList.contains('autocomplete-item')) {
-      const selectedHashtag = e.target.dataset.hashtag;
-      addTag(preSaveTags, preSaveTagsPills, selectedHashtag, removePreSaveTag);
-      preSaveTagsInput.value = '';
-      clearPreSaveTagsBtn.classList.add('hidden');
-      hideAutocomplete(preSaveTagsDropdown);
-      preSaveTagsInput.focus();
-    }
-  });
-  
-  ideaflowBtn.addEventListener('click', async () => {
+  const ideaflowClickHandler = async () => {
     const ideaflowUrl = 'https://ideaflow.app';
     await chrome.tabs.create({ url: ideaflowUrl, active: true });
     window.close();
+  };
+  
+  ideaflowBtn.addEventListener('click', ideaflowClickHandler);
+  
+  // Add keyboard support for the logo button
+  ideaflowBtn.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter' || e.key === ' ') {
+      e.preventDefault();
+      ideaflowClickHandler();
+    }
   });
   
   importBtn.addEventListener('click', () => showView('import'));
@@ -560,96 +524,101 @@ function setupEventListeners() {
   importFileBtn.addEventListener('click', () => importFileInput.click());
   authBtn.addEventListener('click', handleAuth);
   
-  document.getElementById('openSavedNoteBtn').addEventListener('click', () => {
+  openSavedNoteBtn.addEventListener('click', () => {
     if (lastSavedNoteId) {
       const ideaflowUrl = `https://ideaflow.app/?noteIdList=%5B%22${lastSavedNoteId}%22%5D`;
       chrome.tabs.create({ url: ideaflowUrl });
     }
   });
-  
-  document.getElementById('closePostSaveBtn').addEventListener('click', () => location.reload());
-  
-  addTagsBtn.addEventListener('click', async () => {
-    const unpilledText = tagsInput.value.trim();
-    if (unpilledText) {
-      const normalizedTag = unpilledText.startsWith('#') ? unpilledText : `#${unpilledText}`;
-      if (!postSaveTags.includes(normalizedTag)) {
-        postSaveTags.push(normalizedTag);
-        renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
-      }
-      tagsInput.value = '';
-    }
-    if (postSaveTags.length === 0 || !lastSavedNoteId) return;
-    const tags = postSaveTags.map(tag => tag.startsWith('#') ? tag.slice(1) : tag);
-    addTagsBtn.disabled = true;
-    addTagsBtn.textContent = 'Adding...';
-    try {
-      const response = await chromeApi.runtime.sendMessage({
-        action: 'updateTags',
-        noteId: lastSavedNoteId,
-        tags: tags
-      });
-      if (response.success) {
-        showStatus('Tags added!', 'success');
-        postSaveTags = [];
-        renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
-        if (tagsInput.value.trim() === '') {
-          clearTagsBtn.classList.add('hidden');
+
+  deleteSavedNoteBtn.addEventListener('click', () => {
+    if (lastSavedNoteId) {
+      showConfirmation('Are you sure you want to delete this article?', async () => {
+        try {
+          const deleted = await storageService.deleteSavedArticle(lastSavedNoteId);
+          if (deleted) {
+            // Restore to pre-save state
+            quickSaveBtn.classList.remove('hidden');
+            quickSaveBtn.disabled = false;
+            quickSaveBtn.innerHTML = '<span class="btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="margin-left: 1px; margin-bottom: 1px;"><path d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"></path><path d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"></path></svg></span><span class="btn-text">Save to Ideaflow</span>';
+            postSaveOptions.classList.add('hidden');
+            postSaveOptions.classList.remove('already-saved');
+            
+            // Clear tags and reset state
+            tagsInput.value = '';
+            currentTags.length = 0;
+            renderTagPills(tagsPills, currentTags, removeCurrentTag);
+            updateClearButtonVisibility();
+            
+            // Reset flags
+            alreadySavedForCurrentPage = false;
+            lastSavedNoteId = null;
+            
+            showStatus('Article deleted', 'success');
+            // Reload recent saves to update the list
+            await loadRecentSaves();
+          } else {
+            showStatus('Article not found', 'error');
+          }
+        } catch (error) {
+          logger.error('Delete error:', { error: error.message });
+          showStatus('Failed to delete article', 'error');
         }
-        addTagsBtn.disabled = false;
-        addTagsBtn.textContent = 'Add';
-      } else {
-        showStatus(response.error || 'Failed to add tags', 'error');
-        addTagsBtn.disabled = false;
-        addTagsBtn.textContent = 'Add';
-      }
-    } catch (error) {
-      logger.error('Failed to update tags:', { error: error.message });
-      showStatus('Failed to add tags', 'error');
-      addTagsBtn.disabled = false;
-      addTagsBtn.textContent = 'Add';
+      });
     }
   });
   
+  
   tagsInput.addEventListener('keypress', (e) => {
+    // Track typing activity (but not for Enter key, since that creates a tag)
+    if (e.key !== 'Enter') {
+      lastTypingTime = Date.now();
+    }
+    
     if (e.key === 'Enter') {
       e.preventDefault();
       const inputText = tagsInput.value.trim();
       if (inputText) {
         const normalizedTag = inputText.startsWith('#') ? inputText : `#${inputText}`;
-        if (!postSaveTags.includes(normalizedTag)) {
-          postSaveTags.push(normalizedTag);
-          renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+        if (!currentTags.includes(normalizedTag)) {
+          currentTags.push(normalizedTag);
+          renderTagPills(tagsPills, currentTags, removeCurrentTag);
+          debouncedSaveTags(); // Auto-save new tag
         }
         tagsInput.value = '';
-        if (postSaveTags.length === 0) {
-          clearTagsBtn.classList.add('hidden');
-        }
+        updateClearButtonVisibility();
       }
     }
   });
   
   tagsInput.addEventListener('input', (e) => {
+    // Track typing activity
+    lastTypingTime = Date.now();
+    
     const value = e.target.value;
     if (value.includes(' ') || value.includes(',') || value.includes(';')) {
       const parts = value.split(/[\s,;]+/);
       const completedTags = parts.slice(0, -1).filter(tag => tag.trim().length > 0);
       const remainingText = parts[parts.length - 1] || '';
+      
+      let tagsAdded = false;
       completedTags.forEach(tag => {
         const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
-        if (!postSaveTags.includes(normalizedTag)) {
-          postSaveTags.push(normalizedTag);
+        if (!currentTags.includes(normalizedTag)) {
+          currentTags.push(normalizedTag);
+          tagsAdded = true;
         }
       });
-      renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+      
+      if (tagsAdded) {
+        renderTagPills(tagsPills, currentTags, removeCurrentTag);
+        debouncedSaveTags(); // Auto-save new tags
+      }
+      
       tagsInput.value = remainingText;
     }
     showAutocomplete(tagsInput, tagsDropdown, tagsInput.value);
-    if (tagsInput.value.trim() || postSaveTags.length > 0) {
-      clearTagsBtn.classList.remove('hidden');
-    } else {
-      clearTagsBtn.classList.add('hidden');
-    }
+    updateClearButtonVisibility();
   });
   
   tagsInput.addEventListener('keydown', (e) => {
@@ -661,11 +630,12 @@ function setupEventListeners() {
   tagsDropdown.addEventListener('click', (e) => {
     if (e.target.classList.contains('autocomplete-item')) {
       const selectedHashtag = e.target.dataset.hashtag;
-      addTag(postSaveTags, tagsPills, selectedHashtag, removePostSaveTag);
+      addTag(currentTags, tagsPills, selectedHashtag, removeCurrentTag);
       tagsInput.value = '';
-      clearTagsBtn.classList.add('hidden');
+      updateClearButtonVisibility();
       hideAutocomplete(tagsDropdown);
       tagsInput.focus();
+      debouncedSaveTags(); // Auto-save selected tag
     }
   });
   
@@ -691,19 +661,11 @@ function setupEventListeners() {
     searchInput.focus();
   });
   
-  clearPreSaveTagsBtn.addEventListener('click', () => {
-    preSaveTagsInput.value = '';
-    clearPreSaveTagsBtn.classList.add('hidden');
-    preSaveTags.length = 0;
-    renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
-    preSaveTagsInput.focus();
-  });
   
   clearTagsBtn.addEventListener('click', () => {
+    // Only clear the input field, not the saved tags
     tagsInput.value = '';
-    clearTagsBtn.classList.add('hidden');
-    postSaveTags.length = 0;
-    renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+    updateClearButtonVisibility();
     tagsInput.focus();
   });
   
@@ -756,10 +718,6 @@ function setupEventListeners() {
   });
   
   document.addEventListener('click', (e) => {
-    if (!preSaveTagsInput.contains(e.target) && !preSaveTagsDropdown.contains(e.target)) {
-      hideAutocomplete(preSaveTagsDropdown);
-    }
-    
     if (!tagsInput.contains(e.target) && !tagsDropdown.contains(e.target)) {
       hideAutocomplete(tagsDropdown);
     }
@@ -782,17 +740,7 @@ async function handleQuickSave() {
   quickSaveBtn.innerHTML = '<span class="btn-icon">⏳</span><span class="btn-text">Saving...</span>';
   
   try {
-    const unpilledText = preSaveTagsInput.value.trim();
-    if (unpilledText) {
-      const normalizedTag = unpilledText.startsWith('#') ? unpilledText : `#${unpilledText}`;
-      if (!preSaveTags.includes(normalizedTag)) {
-        preSaveTags.push(normalizedTag);
-        renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
-      }
-      preSaveTagsInput.value = '';
-    }
-    
-    const tagsArray = preSaveTags.map(tag => tag.startsWith('#') ? tag.slice(1) : tag);
+    const tagsArray = [];
     
     logger.info('🚀 Sending save message to background', { 
       action: 'save',
@@ -821,18 +769,47 @@ async function handleQuickSave() {
     if (response && response.success) {
       lastSavedNoteId = response.noteId;
       
-      preSaveTagsInput.value = '';
-      preSaveTags.length = 0;
-      renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
-      
       tagsInput.value = '';
-      postSaveTags.length = 0;
-      renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+      currentTags.length = 0;
+      renderTagPills(tagsPills, currentTags, removeCurrentTag);
       clearTagsBtn.classList.add('hidden');
       
       quickSaveBtn.classList.add('hidden');
-      document.querySelector('.pre-save-tags').classList.add('hidden');
       postSaveOptions.classList.remove('hidden');
+      
+      // Auto-fade from "Saved!" to article title after 2 seconds
+      const savedMessage = postSaveOptions.querySelector('.saved-message');
+      const savedText = savedMessage.querySelector('.saved-text');
+      if (savedMessage && savedText && !postSaveOptions.classList.contains('already-saved')) {
+        setTimeout(() => {
+          logger.info('🎭 Starting fade-to-title animation');
+          // Reset animation state first
+          savedMessage.classList.remove('fade-to-title');
+          // Force reflow to ensure class removal takes effect
+          savedMessage.offsetHeight;
+          // Add the animation class
+          savedMessage.classList.add('fade-to-title');
+          // Change text at the fade midpoint
+          setTimeout(() => {
+            logger.info('🎭 Changing text at animation midpoint');
+            const pageTitle = document.title || 'Current Page';
+            // Calculate space reserved for the open button
+            const openBtn = postSaveOptions.querySelector('.open-saved-note-btn');
+            const reservedSpace = openBtn ? openBtn.offsetWidth + 20 : 60; // 20px for margins
+            const savedMessageContainer = savedMessage.parentElement || savedMessage;
+            const truncatedTitle = truncateToFit(pageTitle, savedMessageContainer, reservedSpace);
+            savedText.textContent = truncatedTitle;
+            // Update the tooltip text to show the full title
+            const tooltipText = savedText.parentElement.querySelector('.tooltip-text');
+            if (tooltipText) {
+              tooltipText.textContent = pageTitle;
+            }
+            logger.info('🎭 Text changed to:', truncatedTitle);
+          }, 1500); // 1.5s to midpoint
+        }, 2000);
+      } else {
+        logger.info('🎭 Animation skipped - elements not found or already-saved state');
+      }
         
       loadRecentSaves();
       
@@ -923,13 +900,10 @@ function showView(view) {
     quickSaveBtn.disabled = false;
     quickSaveBtn.innerHTML = '<span class="btn-icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21l-7-5-7 5V5a2 2 0 0 1 2-2h10a2 2 0 0 1 2 2z"></path></svg></span><span class="btn-text">Save to Ideaflow</span>';
     postSaveOptions.classList.add('hidden');
-    preSaveTagsInput.value = '';
     tagsInput.value = '';
     
-    preSaveTags.length = 0;
-    postSaveTags.length = 0;
-    renderTagPills(preSaveTagsPills, preSaveTags, removePreSaveTag);
-    renderTagPills(tagsPills, postSaveTags, removePostSaveTag);
+    currentTags.length = 0;
+    renderTagPills(tagsPills, currentTags, removeCurrentTag);
     
     loadRecentSaves();
   }
@@ -1055,13 +1029,72 @@ function escapeHtml(text) {
   return div.innerHTML;
 }
 
+// Smart truncation based on available space
+function truncateToFit(text, container, reservedSpace = 0) {
+  if (!text || !container) return text;
+  
+  // Create a temporary element to measure text width
+  const measurer = document.createElement('span');
+  measurer.style.visibility = 'hidden';
+  measurer.style.position = 'absolute';
+  measurer.style.whiteSpace = 'nowrap';
+  measurer.style.font = window.getComputedStyle(container).font;
+  document.body.appendChild(measurer);
+  
+  try {
+    // Get available width (container width minus reserved space for buttons)
+    const containerWidth = container.offsetWidth;
+    const availableWidth = containerWidth - reservedSpace;
+    
+    // If full text fits, return it
+    measurer.textContent = text;
+    if (measurer.offsetWidth <= availableWidth) {
+      return text;
+    }
+    
+    // Binary search for the longest text that fits
+    let low = 0;
+    let high = text.length;
+    let bestFit = '';
+    
+    while (low <= high) {
+      const mid = Math.floor((low + high) / 2);
+      const candidate = text.substring(0, mid) + '...';
+      measurer.textContent = candidate;
+      
+      if (measurer.offsetWidth <= availableWidth) {
+        bestFit = candidate;
+        low = mid + 1;
+      } else {
+        high = mid - 1;
+      }
+    }
+    
+    // Try to break at word boundary if possible
+    if (bestFit.length > 3) {
+      const withoutEllipsis = bestFit.substring(0, bestFit.length - 3);
+      const lastSpaceIndex = withoutEllipsis.lastIndexOf(' ');
+      if (lastSpaceIndex > withoutEllipsis.length * 0.7) { // Only if we don't lose too much
+        return withoutEllipsis.substring(0, lastSpaceIndex) + '...';
+      }
+    }
+    
+    return bestFit || text;
+  } finally {
+    document.body.removeChild(measurer);
+  }
+}
+
 // Tag Pills Management
 function createTagPill(tag, onRemove) {
   const pill = document.createElement('div');
   pill.className = 'tag-pill';
   pill.innerHTML = `
     <span class="tag-pill-text">${escapeHtml(tag)}</span>
-    <button class="tag-pill-remove" title="Remove tag">×</button>
+    <div class="tooltip">
+      <button class="tag-pill-remove" aria-label="Remove tag">×</button>
+      <span class="tooltip-text">Remove tag</span>
+    </div>
   `;
   
   const removeBtn = pill.querySelector('.tag-pill-remove');
@@ -1107,16 +1140,144 @@ function removeTag(tagsArray, container, tag, onRemove) {
   }
 }
 
-// Specific remove functions for each section
-function removePreSaveTag(tag) {
-  removeTag(preSaveTags, preSaveTagsPills, tag, removePreSaveTag);
-}
-
-function removePostSaveTag(tag) {
-  removeTag(postSaveTags, tagsPills, tag, removePostSaveTag);
-  if (postSaveTags.length === 0 && tagsInput.value.trim() === '') {
+// Helper function for clear button visibility
+function updateClearButtonVisibility() {
+  if (tagsInput.value.trim()) {
+    clearTagsBtn.classList.remove('hidden');
+  } else {
     clearTagsBtn.classList.add('hidden');
   }
+}
+
+// Debounced tag saving function with shimmer delay
+async function debouncedSaveTags() {
+  if (!lastSavedNoteId) {
+    logger.debug('No saved note ID - skipping tag save');
+    return;
+  }
+  
+  // Check if user was typing recently (within last 1 second)
+  const timeSinceLastTyping = Date.now() - lastTypingTime;
+  if (timeSinceLastTyping < 1000) {
+    logger.debug('User was typing recently, extending debounce');
+    // Restart the debounce timer
+    setTimeout(() => debouncedSaveTags(), 1000 - timeSinceLastTyping);
+    return;
+  }
+  
+  // Clear existing timeouts
+  if (saveTagsTimeout) {
+    clearTimeout(saveTagsTimeout);
+  }
+  if (shimmerTimeout) {
+    clearTimeout(shimmerTimeout);
+  }
+  
+  // Remove any existing saving state first
+  const pills = tagsPills.querySelectorAll('.tag-pill');
+  pills.forEach(pill => pill.classList.remove('saving'));
+  
+  // Debounce the save operation - wait for user to stop typing
+  saveTagsTimeout = setTimeout(async () => {
+    // Start shimmer effect after a short delay to make it feel faster
+    shimmerTimeout = setTimeout(() => {
+      const currentPills = tagsPills.querySelectorAll('.tag-pill');
+      currentPills.forEach(pill => pill.classList.add('saving'));
+    }, 200); // 200ms delay before showing shimmer
+    
+    try {
+      const tags = currentTags.map(tag => tag.startsWith('#') ? tag.slice(1) : tag);
+      
+      const response = await chromeApi.runtime.sendMessage({
+        action: 'updateTags',
+        noteId: lastSavedNoteId,
+        tags: tags
+      });
+      
+      // Clear shimmer timeout since we're done
+      if (shimmerTimeout) {
+        clearTimeout(shimmerTimeout);
+      }
+      
+      // Remove saving state
+      const currentPills = tagsPills.querySelectorAll('.tag-pill');
+      currentPills.forEach(pill => pill.classList.remove('saving'));
+      
+      if (response.success) {
+        // Show brief "Tags Saved!" message
+        showBriefTagsStatus('Tags Saved!');
+      } else {
+        logger.error('Failed to save tags:', { error: response.error });
+        showBriefTagsStatus('Failed to save tags', 'error');
+      }
+    } catch (error) {
+      logger.error('Tag save error:', { error: error.message, lastSavedNoteId, tagsCount: currentTags.length });
+      showBriefTagsStatus('Failed to save tags', 'error');
+      
+      // Always clear shimmer timeout and remove saving state on error
+      if (shimmerTimeout) {
+        clearTimeout(shimmerTimeout);
+        shimmerTimeout = null;
+      }
+      const currentPills = tagsPills.querySelectorAll('.tag-pill');
+      currentPills.forEach(pill => pill.classList.remove('saving'));
+    } finally {
+      // Ensure shimmer timeout is always cleared
+      if (shimmerTimeout) {
+        clearTimeout(shimmerTimeout);
+        shimmerTimeout = null;
+      }
+    }
+  }, 1000); // 1000ms debounce - wait for user to stop typing
+}
+
+// Show brief status message in the saved-text area
+function showBriefTagsStatus(message, type = 'success') {
+  const savedText = document.querySelector('.saved-text');
+  const checkIcon = document.querySelector('.check-icon');
+  if (!savedText) return;
+  
+  const originalText = savedText.textContent;
+  const originalCheckIcon = checkIcon ? checkIcon.style.display : 'none';
+  
+  // Show checkmark for success, hide for error
+  if (checkIcon) {
+    if (type === 'success') {
+      checkIcon.style.display = 'inline';
+      checkIcon.textContent = '✓';
+    } else {
+      checkIcon.style.display = 'none';
+    }
+  }
+  
+  savedText.textContent = message;
+  
+  if (type === 'error') {
+    savedText.style.color = '#d32f2f';
+  } else {
+    savedText.style.color = '#019AB0';
+  }
+  
+  // Restore original text and checkmark after 2 seconds
+  setTimeout(() => {
+    savedText.textContent = originalText;
+    savedText.style.color = '';
+    if (checkIcon) {
+      checkIcon.style.display = originalCheckIcon;
+    }
+  }, 2000);
+}
+
+// Specific remove functions for each section
+function removeCurrentTag(tag) {
+  removeTag(currentTags, tagsPills, tag, removeCurrentTag);
+  updateClearButtonVisibility();
+  debouncedSaveTags(); // Auto-save when tag is removed
+}
+
+// Helper function to trigger save when tags change programmatically
+function saveTagsIfChanged() {
+  debouncedSaveTags();
 }
 
 function getTimeAgo(date) {

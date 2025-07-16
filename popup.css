@@ -53,13 +53,13 @@ body {
 }
 
 .icon-btn {
-  background: none;
-  border: none;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid transparent;
   cursor: pointer;
   font-size: 20px;
-  padding: 4px;
-  border-radius: 4px;
-  transition: background 0.2s;
+  padding: 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -67,21 +67,15 @@ body {
 }
 
 .icon-btn:hover {
-  background: #f0f0f0;
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(1, 154, 176, 0.3);
+  transform: scale(1.05);
 }
 
-/* Ideaflow button styling - teal background like save button */
-.icon-btn.ideaflow-btn {
-  background: #019AB0;
-  color: white;
-  border-radius: 8px;
-  padding: 8px;
+.icon-btn:active {
+  transform: scale(0.98);
 }
 
-.icon-btn.ideaflow-btn:hover {
-  background: #017a8c;
-  color: white;
-}
 
 .icon-btn svg {
   width: 20px;
@@ -197,44 +191,19 @@ body {
 .post-save-options {
   position: relative;
   padding: 16px;
-  background: #e8f5e9;
+  background: #DDF2F6;
   border-radius: 8px;
   margin: 16px;
   animation: fadeIn 0.3s ease-out;
 }
 
-.close-post-save-btn {
-  position: absolute;
-  top: 8px;
-  right: 8px;
-  width: 24px;
-  height: 24px;
-  background: transparent;
-  border: none;
-  font-size: 20px;
-  color: #2e7d32;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 4px;
-  transition: all 0.2s;
-  opacity: 0.6;
-  padding: 0;
-  line-height: 1;
-}
-
-.close-post-save-btn:hover {
-  opacity: 1;
-  background: rgba(46, 125, 50, 0.1);
-}
 
 .saved-message {
   display: flex;
   align-items: center;
   font-size: 16px;
   font-weight: 500;
-  color: #2e7d32;
+  color: #0D4F5C;
   margin-bottom: 12px;
 }
 
@@ -246,21 +215,27 @@ body {
 }
 
 .check-icon {
-  font-size: 20px;
-  margin-right: 8px;
+  font-size: 16px;
+  margin-right: 6px;
+  line-height: 1;
+  vertical-align: middle;
+  display: inline-block;
+  width: 16px;
+  height: 16px;
+  text-align: center;
 }
 
 .open-saved-note-btn {
   width: 24px;
   height: 24px;
   background: rgba(255, 255, 255, 0.9);
-  border: 1px solid #4caf50;
+  border: 1px solid #019AB0;
   border-radius: 4px;
   cursor: pointer;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #2e7d32;
+  color: #0D4F5C;
   padding: 0;
   margin-left: 8px;
   transition: all 0.2s ease;
@@ -268,9 +243,9 @@ body {
 }
 
 .open-saved-note-btn:hover {
-  background: #2e7d32;
+  background: #019AB0;
   color: #fff;
-  border-color: #2e7d32;
+  border-color: #019AB0;
   transform: scale(1.05);
 }
 
@@ -281,15 +256,62 @@ body {
 
 /* Position header buttons inside post-save state */
 .open-saved-note-btn.header-btn {
+  position: static; /* Remove positioning from button */
+}
+
+/* Position header buttons container */
+.post-save-header-buttons {
   position: absolute;
   top: 8px;
-  right: 44px; /* leaves space for the × button */
+  right: 8px;
+  display: flex;
+  gap: 8px;
+}
+
+/* Style for delete button in header */
+.delete-saved-note-btn.header-btn {
+  position: static;
+  width: 24px;
+  height: 24px;
+  background: rgba(255, 255, 255, 0.9);
+  border: 1px solid #ddd;
+  border-radius: 3px;
+  cursor: pointer;
+  opacity: 1;
+  font-size: 16px;
+  color: #999;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s ease;
+}
+
+.delete-saved-note-btn.header-btn:hover {
+  background: #f5f5f5;
+  color: #666;
+  border-color: #999;
+  transform: scale(1.1);
+}
+
+/* Tooltip positioning for post-save header buttons */
+.post-save-header-buttons .tooltip .tooltip-text {
+  bottom: -35px;
+  top: auto;
+  right: 0;
+  left: auto;
+  transform: translateX(0);
+}
+
+.post-save-header-buttons .tooltip .tooltip-text::after {
+  bottom: 100%;
+  top: auto;
+  right: 10px;
+  left: auto;
+  margin-left: 0;
+  border-color: transparent transparent #333 transparent;
 }
 
 /* Variant for pages that were already saved before the popup opened */
-.post-save-options.already-saved {
-  background: #f1faf1;
-}
 /* Hide the big checkmark icon in subdued mode */
 .post-save-options.already-saved .check-icon {
   display: none;
@@ -297,6 +319,10 @@ body {
 /* Slightly adjust spacing when icon is gone */
 .post-save-options.already-saved .saved-message {
   margin-left: 0;
+}
+/* Ensure tags are fully visible in already-saved state */
+.post-save-options.already-saved .tags-input-container {
+  opacity: 1;
 }
 
 /* Tags Section */
@@ -308,23 +334,91 @@ body {
   margin: 0;
 }
 
-/* Pre-Save Tags */
-.pre-save-tags {
-  margin: 16px 16px 12px 16px;
+/* Tag Pills Container */
+.tag-pills-container {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+  min-height: 0;
 }
+
+.tag-pills-container:empty {
+  margin-bottom: 0;
+}
+
+/* Tag pills (teal style) */
+.tag-pill {
+  background: #019AB0;
+  color: white;
+  border: 1px solid #019AB0;
+  border-radius: 12px;
+  padding: 3px 8px;
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  transition: all 0.2s ease;
+}
+
+.tag-pill:hover {
+  background: #017a8c;
+  border-color: #017a8c;
+}
+
+.tag-pill.saving {
+  position: relative;
+  overflow: hidden;
+}
+
+.tag-pill.saving::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 255, 255, 0.6),
+    transparent
+  );
+  animation: shimmer 1.5s infinite;
+}
+
+@keyframes shimmer {
+  0% {
+    left: -100%;
+  }
+  100% {
+    left: 100%;
+  }
+}
+
+/* Input wrapper for better layout */
+.input-wrapper {
+  flex: 1;
+  min-width: 200px;
+  max-width: none;
+}
+
 
 .tags-input-container {
   position: relative;
   display: flex;
   align-items: center;
   flex: 1;
+  transition: opacity 0.2s;
+  opacity: 0.7;
 }
 
-.pre-save-tags .tags-input {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 8px 32px 8px 12px; /* Only need room for × button */
+.tags-input-container:hover,
+.tags-input-container:focus-within,
+.post-save-options .tags-input-container {
+  opacity: 1;
 }
+
 
 /* Ensure post-save tags input has correct padding for both buttons */
 .post-save-options .tags-input {
@@ -332,12 +426,14 @@ body {
 }
 
 .tags-input {
-  flex: 1;
-  padding: 8px 60px 8px 12px; /* Adjusted right padding for both buttons */
+  width: 100%;
+  padding: 8px 30px 8px 12px;
   border: 1px solid #ddd;
   border-radius: 6px;
   font-size: 14px;
   transition: border-color 0.2s;
+  background: white;
+  color: #333;
 }
 
 .tags-input:focus {
@@ -345,11 +441,11 @@ body {
   border-color: #019AB0;
 }
 
+.tags-input::placeholder {
+  color: #999;
+}
+
 .clear-tags-btn {
-  position: absolute;
-  right: 50px; /* Make room for shorter Add button in post-save section */
-  top: 50%;
-  transform: translateY(-50%);
   background: none;
   border: none;
   font-size: 16px;
@@ -365,36 +461,20 @@ body {
   z-index: 20;
 }
 
-/* Pre-save clear button positioning (no Add button) */
-.pre-save-tags .clear-tags-btn {
-  right: 8px; /* No Add button, so position at edge */
+/* Clear button positioning */
+.tags-input-container .tooltip:has(.clear-tags-btn) {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
-/* Special positioning for input tooltips */
-.tags-input-container .tooltip {
+/* Input wrapper */
+.tags-input-container .input-wrapper {
   flex: 1;
-  display: flex;
   position: relative;
-  z-index: 1; /* Ensure tooltip container has proper stacking context */
 }
 
-.tags-input-container .tooltip .tags-input {
-  width: 100%;
-}
-
-/* Fix pre-save tags tooltip positioning */
-.pre-save-tags .tooltip .tooltip-text {
-  bottom: auto;
-  top: 100%;
-  margin-top: 5px;
-  z-index: 10000; /* Higher than any other element */
-}
-
-.pre-save-tags .tooltip .tooltip-text::after {
-  bottom: 100%;
-  top: auto;
-  border-color: transparent transparent #333 transparent;
-}
 
 .clear-tags-btn:hover {
   background-color: #f0f0f0;
@@ -403,37 +483,6 @@ body {
 
 .clear-tags-btn.hidden {
   display: none;
-}
-
-.add-tags-btn {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
-  background: #019AB0;
-  border: 1px solid #019AB0;
-  color: white;
-  cursor: pointer;
-  padding: 4px 8px;
-  font-size: 12px;
-  font-weight: 500;
-  border-radius: 4px;
-  transition: all 0.2s ease;
-  z-index: 20;
-  white-space: nowrap;
-}
-
-.add-tags-btn:hover {
-  background: #017a8c;
-  border-color: #017a8c;
-  transform: translateY(-50%) scale(1.02);
-}
-
-.add-tags-btn:disabled {
-  background: #ccc;
-  border-color: #ccc;
-  cursor: not-allowed;
-  transform: translateY(-50%);
 }
 
 /* Tag Pills */
@@ -554,10 +603,6 @@ body {
 }
 
 .clear-search-btn {
-  position: absolute;
-  right: 8px;
-  top: 50%;
-  transform: translateY(-50%);
   background: none;
   border: none;
   font-size: 16px;
@@ -570,6 +615,14 @@ body {
   justify-content: center;
   border-radius: 50%;
   transition: background-color 0.2s, color 0.2s;
+}
+
+/* Search clear button tooltip container positioning */
+.search-container .tooltip:has(.clear-search-btn) {
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
 }
 
 .clear-search-btn:hover {
@@ -670,9 +723,9 @@ body {
   font-size: 14px;
   font-weight: 500;
   margin-bottom: 4px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 4px;
 }
 
 .recent-item-url {
@@ -1212,7 +1265,6 @@ body {
   transform: translateX(-50%);
   opacity: 0;
   transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
-  transition-delay: 0.4s;
   pointer-events: none;
   white-space: nowrap;
 }
@@ -1231,10 +1283,12 @@ body {
 .tooltip:hover .tooltip-text {
   visibility: visible;
   opacity: 1;
+  transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
   transition-delay: 0.4s;
 }
 
 .tooltip:not(:hover) .tooltip-text {
+  transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
   transition-delay: 0s;
 }
 
@@ -1292,6 +1346,153 @@ body {
 .tooltip .primary-btn ~ .tooltip-text::after {
   bottom: 100%;
   top: auto;
+  border-color: transparent transparent #333 transparent;
+}
+
+/* Inline tooltips for indicators and pills */
+.inline-tooltip {
+  display: inline-block;
+}
+
+/* Ideaflow logo button styling */
+.ideaflow-logo-btn {
+  width: 36px;
+  height: 36px;
+  object-fit: contain;
+  cursor: pointer;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+  padding: 4px;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid transparent;
+}
+
+.ideaflow-logo-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(1, 154, 176, 0.3);
+  transform: scale(1.05);
+}
+
+.ideaflow-logo-btn:active {
+  transform: scale(0.98);
+}
+
+/* Title tooltip styling */
+.title-tooltip {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.title-tooltip .title-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+  min-width: 0;
+}
+
+.title-tooltip .tooltip-text {
+  white-space: normal;
+  max-width: 300px;
+  word-wrap: break-word;
+  text-align: left;
+}
+
+/* Mobile touch support - show tooltips on tap */
+@media (hover: none) and (pointer: coarse) {
+  .tooltip:active .tooltip-text {
+    visibility: visible;
+    opacity: 1;
+    transition-delay: 0s;
+  }
+}
+
+/* Auto fade transition for saved message */
+.saved-message.fade-to-title {
+  animation: fadeOutToTitle 3s cubic-bezier(0.4, 0.0, 0.2, 1) 2s forwards !important;
+}
+
+/* Hide checkmark during transition */
+.saved-message.fade-to-title .check-icon {
+  animation: fadeOutCheckmark 3s cubic-bezier(0.4, 0.0, 0.2, 1) 2s forwards;
+}
+
+@keyframes fadeOutToTitle {
+  0% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  50% {
+    opacity: 0;
+    transform: translateY(-2px);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes fadeOutCheckmark {
+  0% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  30% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  100% {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+}
+
+/* Reduced motion support */
+@media (prefers-reduced-motion: reduce) {
+  .tooltip-text {
+    transition: none;
+  }
+  
+  /* TEMPORARILY DISABLED FOR TESTING - uncomment when bezier is working
+  .saved-message.fade-to-title {
+    animation: none;
+  }
+  */
+}
+
+/* Tooltip positioning for form control buttons */
+.tags-input-container .tooltip:has(.clear-tags-btn) .tooltip-text,
+.tags-input-container .tooltip:has(.add-tags-btn) .tooltip-text,
+.search-container .tooltip:has(.clear-search-btn) .tooltip-text {
+  right: 0;
+  left: auto;
+  transform: translateX(0);
+}
+
+.tags-input-container .tooltip:has(.clear-tags-btn) .tooltip-text::after,
+.tags-input-container .tooltip:has(.add-tags-btn) .tooltip-text::after,
+.search-container .tooltip:has(.clear-search-btn) .tooltip-text::after {
+  right: 10px;
+  left: auto;
+  margin-left: 0;
+}
+
+/* Tooltip positioning for tag pill remove buttons */
+.tag-pill .tooltip .tooltip-text {
+  bottom: -35px;
+  top: auto;
+  right: 0;
+  left: auto;
+  transform: translateX(0);
+}
+
+.tag-pill .tooltip .tooltip-text::after {
+  bottom: 100%;
+  top: auto;
+  right: 10px;
+  left: auto;
+  margin-left: 0;
   border-color: transparent transparent #333 transparent;
 }
 

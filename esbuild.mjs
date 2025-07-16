@@ -68,6 +68,7 @@ try {
     'popup.html',
     'popup.css',
     'jszip.min.js',
+    'ideaflow-icon.png',
   ];
   const iconFiles = await glob('*.png');
   const allFilesToCopy = [...staticFiles, ...iconFiles];

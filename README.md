@@ -33,7 +33,7 @@ A powerful Chrome extension that provides a Pocket-like experience for saving ar
 ## 🚀 Installation
 
 ### From Chrome Web Store (Recommended)
-1. Visit the [IdeaPocket Chrome Web Store page](https://chrome.google.com/webstore/detail/ideapocket)
+1. Visit the [IdeaPocket Chrome Web Store page](https://chromewebstore.google.com/detail/ideapocket-save-to-ideafl/polpinilcbeglmjdjfmamnoenlaplnhm)
 2. Click "Add to Chrome"
 3. Follow the prompts to install
 
