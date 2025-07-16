@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "IdeaPocket - Save to Ideaflow",
-  "version": "1.0.8",
+  "version": "1.0.9",
   "description": "Save articles and text selections to Ideaflow with a Pocket-like experience",
   "author": "Ideaflow",
   "homepage_url": "https://ideaflow.app",
