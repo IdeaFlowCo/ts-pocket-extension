@@ -2,9 +2,9 @@
 // Uses web-based flow for portability - works for all users without per-extension configuration
 
 // Import centralized config and storage service
-import CONFIG from './config.js';
+import CONFIG from './config.ts';
 import storageService from './storage-service.js';
-import logger from './logger.js';
+import logger from './logger';
 
 // OAuth configuration - uses centralized config with auth-specific extensions
 const AUTH_CONFIG = {

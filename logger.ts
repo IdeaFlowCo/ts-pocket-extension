@@ -1,18 +1,24 @@
 // Unified logging system for IdeaPocket
-class Logger {
-  constructor() {
-    this.logs = [];
-    this.maxLogs = 500;
-    this.listeners = new Set();
-    this.isDev = this.checkIsDev();
-    this.debugMode = false;
-    this.logLevel = 'DEBUG'; // Default log level
-    this.isInitialized = false;
-    this.logQueue = [];
-    // Removed source cache - memory leak
 
-    // Defer initialization to be called explicitly
-  }
+type LogLevel = 'DEBUG' | 'INFO' | 'WARN' | 'ERROR';
+
+export interface LogEntry {
+  timestamp: string;
+  level: LogLevel;
+  message: string;
+  data: Record<string, unknown>;
+  source: string;
+}
+
+class Logger {
+  private logs: LogEntry[] = [];
+  private maxLogs = 500;
+  private listeners: Set<(entry: LogEntry) => void> = new Set();
+  private isDev: boolean = this.checkIsDev();
+  private debugMode = false;
+  private logLevel: LogLevel = 'DEBUG';
+  private isInitialized = false;
+  private logQueue: Array<{ level: LogLevel; message: string; data: Record<string, unknown>; source: string }> = [];
 
   checkIsDev() {
     try {
@@ -44,12 +50,12 @@ class Logger {
 
   processQueue() {
     while (this.logQueue.length > 0) {
-      const { level, message, data, source } = this.logQueue.shift();
+      const { level, message, data, source } = this.logQueue.shift()!;
       this._log(level, message, data, source);
     }
   }
 
-  log(level, message, data = {}) {
+  log(level: LogLevel, message: string, data: Record<string, unknown> = {}) {
     const source = this.getSource();
     if (!this.isInitialized) {
       this.logQueue.push({ level, message, data, source });
@@ -58,14 +64,14 @@ class Logger {
     this._log(level, message, data, source);
   }
 
-  _log(level, message, data, source) {
+  _log(level: LogLevel, message: string, data: Record<string, unknown>, source: string) {
     if (!this.shouldLog(level)) {
       return;
     }
 
     const timestamp = new Date().toISOString();
     const sanitizedData = this.sanitize(data);
-    const entry = {
+    const entry: LogEntry = {
       timestamp,
       level,
       message,
@@ -75,14 +81,15 @@ class Logger {
 
     // Only log to console in dev mode or if debug is enabled
     if (this.isDev || this.debugMode || level === 'ERROR') {
-      const prefix = {
+      const prefix: Record<LogLevel, string> = {
         'ERROR': '❌',
         'WARN': '⚠️',
         'INFO': '✅',
         'DEBUG': '🔍'
-      }[level] || '📝';
+      } as const;
       
-      console.log(`${prefix} [${timestamp}] ${message}`, data);
+      // eslint-disable-next-line no-console
+      console.log(`${prefix[level]} [${timestamp}] ${message}`, data);
     }
 
     // Always buffer entries so they can be persisted across service-worker restarts
@@ -96,6 +103,7 @@ class Logger {
       try {
         listener(entry);
       } catch (e) {
+        // eslint-disable-next-line no-console
         console.error('Log listener error:', e);
       }
     });
@@ -106,29 +114,29 @@ class Logger {
     }
   }
 
-  error(message, data) {
+  error(message: string, data?: Record<string, unknown>) {
     this.log('ERROR', message, data);
   }
 
-  warn(message, data) {
+  warn(message: string, data?: Record<string, unknown>) {
     this.log('WARN', message, data);
   }
 
-  info(message, data) {
+  info(message: string, data?: Record<string, unknown>) {
     this.log('INFO', message, data);
   }
 
-  debug(message, data) {
+  debug(message: string, data?: Record<string, unknown>) {
     this.log('DEBUG', message, data);
   }
 
-  getLogs(filter = {}) {
-    let logs = [...this.logs];
+  getLogs(filter: Partial<{ level: LogLevel; source: string; since: string } & Record<string, unknown>> = {}) {
+    let logs: LogEntry[] = [...this.logs];
     
     // Add manifest version to the logs for easy debugging
     try {
       const manifest = chrome.runtime.getManifest();
-      const versionLog = {
+      const versionLog: LogEntry = {
         timestamp: new Date().toISOString(),
         level: 'INFO',
         message: `IdeaPocket Version: ${manifest.version}`,
@@ -160,25 +168,25 @@ class Logger {
     chrome.storage.local.remove('logs');
   }
 
-  addListener(callback) {
+  addListener(callback: (entry: LogEntry) => void) {
     this.listeners.add(callback);
   }
 
-  removeListener(callback) {
+  removeListener(callback: (entry: LogEntry) => void) {
     this.listeners.delete(callback);
   }
 
-  shouldLog(level) {
-    const levels = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3 };
+  shouldLog(level: LogLevel) {
+    const levels: Record<LogLevel, number> = { 'DEBUG': 0, 'INFO': 1, 'WARN': 2, 'ERROR': 3 };
     return levels[level] >= levels[this.logLevel];
   }
 
-  sanitize(data) {
+  sanitize(data: unknown) {
     if (!data || typeof data !== 'object') {
-      return data;
+      return data as Record<string, unknown>;
     }
     const sensitiveKeys = ['token', 'secret', 'password', 'email', 'userId', 'authToken', 'refreshToken', 'idToken'];
-    const sanitized = { ...data };
+    const sanitized = { ...(data as Record<string, unknown>) };
     for (const key in sanitized) {
       if (sensitiveKeys.includes(key.toLowerCase())) {
         sanitized[key] = '[REDACTED]';
@@ -188,13 +196,11 @@ class Logger {
   }
 
   saveState() {
-    // Directly return the promise; caller can handle rejections if desired
     return chrome.storage.local.set({ logs: this.logs });
   }
 
   /**
    * Force-persist the current in-memory log buffer immediately.
-   * Returns the underlying promise so callers can await completion.
    */
   flush() {
     return this.saveState();
@@ -202,14 +208,14 @@ class Logger {
 
   getSource() {
     try {
-      const stackLines = new Error().stack.split('\n');
+      const stackLines = new Error().stack?.split('\n') || [];
       // Start from the 3rd line to skip getSource and the log function itself
       for (let i = 3; i < stackLines.length; i++) {
         const line = stackLines[i];
         if (line.includes('background.js')) return 'BACKGROUND';
         if (line.includes('content.js')) return 'CONTENT';
         if (line.includes('popup.js')) return 'POPUP';
-        if (line.includes('api-client.js')) return 'API';
+        if (line.includes('api-client.ts')) return 'API';
         if (line.includes('auth.js')) return 'AUTH';
         if (line.includes('storage-service.js')) return 'STORAGE';
       }
@@ -233,8 +239,8 @@ class Logger {
 const logger = new Logger();
 
 // For service worker, expose via chrome.runtime
+declare const globalThis: typeof Window & { __tspocket_logger?: Logger };
 if (typeof chrome !== 'undefined' && chrome.runtime) {
-  // Make logger available to other scripts
   globalThis.__tspocket_logger = logger;
 }
 
@@ -243,4 +249,4 @@ if (typeof chrome !== 'undefined' && chrome.runtime) {
   await logger.initialize();
 })();
 
-export default logger;
+export default logger; 

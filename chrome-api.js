@@ -1,5 +1,5 @@
 // Chrome API wrapper with proper error handling
-import { IdeaPocketError } from './api-client.js';
+import { IdeaPocketError } from './api-client';
 
 export class ChromeApiError extends IdeaPocketError {
   constructor(api, operation, chromeError) {

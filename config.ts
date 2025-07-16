@@ -1,4 +1,3 @@
-// Centralized configuration for the extension
 const CONFIG = {
   // API Configuration
   api: {
@@ -13,7 +12,7 @@ const CONFIG = {
     domain: 'ideaflow.auth0.com',
     clientId: 'ZpX2kkoNfczUya7WChztcv2MGbiFs7T3',
     audience: 'https://prod-api.ideaflow.app/v1',
-    redirectUrl: null, // Set dynamically when needed to avoid early Chrome API access
+    redirectUrl: null as string | null, // Set dynamically when needed to avoid early Chrome API access
     scope: 'openid profile email',
     // Helper function to get redirect URL when needed
     getRedirectUrl() {
@@ -53,7 +52,6 @@ const CONFIG = {
   }
 };
 
-// Freeze the config to prevent accidental modifications
 Object.freeze(CONFIG);
 Object.freeze(CONFIG.api);
 Object.freeze(CONFIG.auth);
@@ -62,5 +60,4 @@ Object.freeze(CONFIG.storageKeys);
 Object.freeze(CONFIG.extraction);
 Object.freeze(CONFIG.firecrawl);
 
-// ES6 module export
-export default CONFIG;
+export default CONFIG; 

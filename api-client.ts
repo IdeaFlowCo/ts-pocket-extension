@@ -1,12 +1,27 @@
-// Unified API client for IdeaPocket extension
-import CONFIG from './config.js';
+import CONFIG from './config';
 import { getValidAccessToken } from './auth.js';
-import logger from './logger.js';
+import logger from './logger';
 
+// Shared domain types (lightweight for now)
+export type HttpMethod = 'GET' | 'POST' | 'PUT' | 'DELETE' | 'PATCH';
+
+export interface ApiErrorDetails {
+  status?: number;
+  body?: string;
+  [key: string]: unknown;
+}
 
 // Custom error classes
 export class IdeaPocketError extends Error {
-  constructor(message, code, details = {}) {
+  timestamp: string;
+  code: string;
+  details: Record<string, unknown>;
+
+  constructor(
+    message: string,
+    code: string,
+    details: Record<string, unknown> = {}
+  ) {
     super(message);
     this.name = 'IdeaPocketError';
     this.code = code;
@@ -16,21 +31,22 @@ export class IdeaPocketError extends Error {
 }
 
 export class NetworkError extends IdeaPocketError {
-  constructor(message, details) {
+  constructor(message: string, details?: ApiErrorDetails) {
     super(message, 'NETWORK_ERROR', details);
     this.name = 'NetworkError';
   }
 }
 
 export class AuthError extends IdeaPocketError {
-  constructor(message, details) {
+  constructor(message: string, details?: ApiErrorDetails) {
     super(message, 'AUTH_ERROR', details);
     this.name = 'AuthError';
   }
 }
 
 export class RateLimitError extends IdeaPocketError {
-  constructor(retryAfter, details) {
+  retryAfter: number;
+  constructor(retryAfter: number, details?: ApiErrorDetails) {
     super(`Rate limited. Retry after ${retryAfter}ms`, 'RATE_LIMIT', { retryAfter, ...details });
     this.name = 'RateLimitError';
     this.retryAfter = retryAfter;
@@ -38,7 +54,8 @@ export class RateLimitError extends IdeaPocketError {
 }
 
 export class ValidationError extends IdeaPocketError {
-  constructor(message, field, details) {
+  field: string | undefined;
+  constructor(message: string, field?: string, details?: ApiErrorDetails) {
     super(message, 'VALIDATION_ERROR', { field, ...details });
     this.name = 'ValidationError';
     this.field = field;
@@ -46,15 +63,18 @@ export class ValidationError extends IdeaPocketError {
 }
 
 export class ContentExtractionError extends IdeaPocketError {
-  constructor(message, details) {
+  constructor(message: string, details?: ApiErrorDetails) {
     super(message, 'CONTENT_EXTRACTION_ERROR', details);
     this.name = 'ContentExtractionError';
   }
 }
 
-
-// API Client class
 export class ApiClient {
+  baseUrl: string;
+  timeout: number;
+  retryAttempts: number;
+  retryDelay: number;
+
   constructor() {
     this.baseUrl = CONFIG.api.baseUrl;
     this.timeout = CONFIG.api.timeout;
@@ -62,7 +82,7 @@ export class ApiClient {
     this.retryDelay = CONFIG.api.retryDelay;
   }
 
-  async fetchWithTimeout(url, options = {}, timeout = this.timeout) {
+  private async fetchWithTimeout(url: string, options: RequestInit = {}, timeout: number = this.timeout) {
     logger.debug('Making API request', {
       url,
       method: options.method || 'GET',
@@ -85,7 +105,7 @@ export class ApiClient {
       });
       
       return response;
-    } catch (error) {
+    } catch (error: any) {
       clearTimeout(id);
       logger.error('Fetch error', { error: error.message });
       if (error.name === 'AbortError') {
@@ -95,7 +115,7 @@ export class ApiClient {
     }
   }
 
-  async makeRequest(path, method = 'GET', body = null, options = {}) {
+  async makeRequest<T = unknown>(path: string, method: HttpMethod = 'GET', body: unknown = null, options: { headers?: Record<string, string>; retries?: number } = {}): Promise<T> {
     logger.info(`🌐 API ${method} ${path}`, { 
       hasBody: !!body,
       bodySize: body ? JSON.stringify(body).length : 0,
@@ -113,13 +133,13 @@ export class ApiClient {
           tokenLength: token?.length 
         });
         
-        const requestOptions = {
+        const requestOptions: RequestInit = {
           method,
           headers: {
             'Authorization': `Bearer ${token}`,
             'Content-Type': 'application/json',
             ...options.headers
-          },
+          }
         };
 
         if (body) {
@@ -144,114 +164,86 @@ export class ApiClient {
           url
         });
         
-        // Handle rate limiting response
+        // Handle rate limiting
         if (response.status === 429) {
           const retryAfter = response.headers.get('Retry-After');
           const waitTime = retryAfter ? parseInt(retryAfter) * 1000 : Math.pow(2, attempt) * this.retryDelay;
           logger.warn('Rate limited by server', { waitTime, attempt });
-          
           if (attempt < retries - 1) {
-            await new Promise(resolve => setTimeout(resolve, waitTime));
+            await new Promise(r => setTimeout(r, waitTime));
             continue;
           }
-          
           throw new RateLimitError(waitTime, { path, method, attempt });
         }
-        
-        // Handle authentication errors
+
+        // Auth errors
         if (response.status === 401) {
           throw new AuthError('Authentication failed', { path, method });
         }
-        
+
         if (!response.ok) {
-          // Don't retry on client errors (4xx) except 429
           if (response.status >= 400 && response.status < 500) {
             const errorBody = await response.text();
             logger.error(`Client error ${response.status}`, { statusText: response.statusText, path, method });
-            throw new IdeaPocketError(
-              `API request failed: ${response.status} ${response.statusText}`, 
-              'CLIENT_ERROR',
-              { status: response.status, body: errorBody, path, method }
-            );
+            throw new IdeaPocketError('API request failed', 'CLIENT_ERROR', { status: response.status, body: errorBody, path, method });
           }
-          
-          // Retry on server errors (5xx)
           if (attempt < retries - 1) {
             const delay = Math.pow(2, attempt) * this.retryDelay;
             logger.warn(`Server error ${response.status}`, { retryDelay: delay, attempt });
-            await new Promise(resolve => setTimeout(resolve, delay));
+            await new Promise(r => setTimeout(r, delay));
             continue;
           }
-          
-          throw new NetworkError(
-            `Server error: ${response.status} ${response.statusText}`,
-            { status: response.status, path, method, attempt }
-          );
+          throw new NetworkError(`Server error: ${response.status} ${response.statusText}`, { status: response.status, path, method, attempt });
         }
-        
-        let data;
+
+        // Parse JSON
+        let data: T;
         try {
           data = await response.json();
-          logger.info(`API Success: ${method} ${path}`, {
-            responseType: Array.isArray(data) ? 'array' : typeof data,
-            hasData: !!data?.data,
-            hasError: !!data?.error,
-            arrayLength: Array.isArray(data) ? data.length : (Array.isArray(data?.data) ? data.data.length : 'N/A')
-          });
-        } catch (jsonError) {
+        } catch (jsonError: any) {
           logger.error('Failed to parse JSON response', { error: jsonError.message, status: response.status });
-          throw new IdeaPocketError(
-            'Invalid JSON response from API',
-            'PARSE_ERROR',
-            { status: response.status, path, method }
-          );
+          throw new IdeaPocketError('Invalid JSON response from API', 'PARSE_ERROR', { status: response.status, path, method });
         }
         return data;
-        
-      } catch (error) {
+      } catch (error: any) {
         logger.error(`API request attempt ${attempt + 1} failed`, { error: error.message });
-        
-        // Re-throw specific errors
         if (error instanceof IdeaPocketError) {
           throw error;
         }
-        
-        // Network errors - retry
         if (attempt < retries - 1) {
           const delay = Math.pow(2, attempt) * this.retryDelay;
           logger.debug('Retrying request', { delay, attempt });
-          await new Promise(resolve => setTimeout(resolve, delay));
+          await new Promise(r => setTimeout(r, delay));
           continue;
         }
-        
-        // Wrap unknown errors
         throw new NetworkError(error.message, { originalError: error, path, method });
       }
     }
+    // should never reach here
+    throw new NetworkError('Max retries exceeded', { path, method });
   }
 
   // Convenience methods
-  async get(path, options) {
-    return this.makeRequest(path, 'GET', null, options);
+  get<T = unknown>(path: string, options = {}) {
+    return this.makeRequest<T>(path, 'GET', null, options);
   }
 
-  async post(path, body, options) {
-    return this.makeRequest(path, 'POST', body, options);
+  post<T = unknown>(path: string, body: unknown, options = {}) {
+    return this.makeRequest<T>(path, 'POST', body, options);
   }
 
-  async put(path, body, options) {
-    return this.makeRequest(path, 'PUT', body, options);
+  put<T = unknown>(path: string, body: unknown, options = {}) {
+    return this.makeRequest<T>(path, 'PUT', body, options);
   }
 
-  async delete(path, options) {
-    return this.makeRequest(path, 'DELETE', null, options);
+  delete<T = unknown>(path: string, options = {}) {
+    return this.makeRequest<T>(path, 'DELETE', null, options);
   }
 
-  async patch(path, body, options) {
-    return this.makeRequest(path, 'PATCH', body, options);
+  patch<T = unknown>(path: string, body: unknown, options = {}) {
+    return this.makeRequest<T>(path, 'PATCH', body, options);
   }
 }
 
-// Export singleton instance
 const apiClient = new ApiClient();
-export default apiClient;
+export default apiClient; 

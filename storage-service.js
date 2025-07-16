@@ -1,6 +1,6 @@
 // Storage service wrapper for Chrome storage API
-import CONFIG from './config.js';
-import logger from './logger.js';
+import CONFIG from './config.ts';
+import logger from './logger';
 
 /**
  * Chrome storage wrapper with proper error handling and promises

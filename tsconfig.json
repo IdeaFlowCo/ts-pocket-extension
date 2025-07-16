@@ -1,45 +1,18 @@
 {
   "compilerOptions": {
     "target": "es2022",
-    "lib": ["es2022", "dom", "dom.iterable"],
     "module": "esnext",
     "moduleResolution": "bundler",
-    "allowSyntheticDefaultImports": true,
-    "esModuleInterop": true,
-    "strict": true,
-    "noImplicitAny": true,
-    "strictNullChecks": true,
-    "strictFunctionTypes": true,
-    "noImplicitReturns": true,
-    "noImplicitThis": true,
-    "noUnusedLocals": true,
-    "noUnusedParameters": true,
-    "exactOptionalPropertyTypes": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true,
-    "declaration": false,
-    "outDir": "./dist",
-    "rootDir": "./",
-    "sourceMap": true,
-    "removeComments": false,
-    "isolatedModules": true,
+    "lib": ["dom", "es2022"],
     "allowJs": true,
     "checkJs": false,
-    "incremental": true,
+    "strict": false,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
     "resolveJsonModule": true,
-    "types": ["chrome", "webextension-polyfill"]
+    "sourceMap": true,
+    "types": ["chrome"]
   },
-  "include": [
-    "*.ts",
-    "*.tsx",
-    "*.js",
-    "*.jsx"
-  ],
-  "exclude": [
-    "node_modules",
-    "dist",
-    "*.min.js",
-    "jszip.min.js",
-    "fuse.mjs"
-  ]
+  "include": ["**/*.ts"],
+  "exclude": ["dist", "node_modules"]
 }

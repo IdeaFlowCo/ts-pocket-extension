@@ -1,11 +1,23 @@
 // Background script for IdeaPocket Chrome Extension
 import { loginWithAuth0, logout, isLoggedIn } from './auth.js';
-import CONFIG from './config.js';
-import apiClient, { ContentExtractionError } from './api-client.js';
+import CONFIG from './config.ts';
+import apiClient, { ContentExtractionError } from './api-client';
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
 import offlineQueue from './offline-queue.js';
-import logger from './logger.js';
+import logger from './logger';
+import { bootstrap as initBootstrap, ensureInitialized } from './background/init';
+import { bootstrap as commandsBootstrap } from './background/commands';
+import { bootstrap as saveBootstrap } from './background/save';
+import { bootstrap as selectionBootstrap } from './background/selection';
+import { bootstrap as messagingBootstrap } from './background/messaging';
+
+// Call bootstraps (order currently not important)
+initBootstrap();
+commandsBootstrap();
+saveBootstrap();
+selectionBootstrap();
+messagingBootstrap();
 
 // Global error handler to prevent service worker crashes
 self.addEventListener('error', (event) => {
@@ -18,10 +30,6 @@ self.addEventListener('unhandledrejection', (event) => {
   event.preventDefault();
 });
 
-// Track initialization state
-let isInitialized = false;
-let initializationPromise = null;
-
 // Production-safe logging
 const IS_DEV = !('update_url' in chrome.runtime.getManifest());
 
@@ -29,79 +37,502 @@ const IS_DEV = !('update_url' in chrome.runtime.getManifest());
 const log = logger;
 
 // Log immediately when script loads
-log.info(`Background script loaded`);
+log.info('Background script loaded');
 
+// Init bootstrap already attaches listeners and calls ensureInitialized()
 
-// Initialize extension on startup and install
-chromeApi.runtime.onStartup.addListener(() => {
-  log.info('Extension startup event');
-  ensureInitialized();
+// Command listeners moved to background/commands.ts
+
+// Message handler with initialization check
+chromeApi.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  log.info('Message received', { action: request.action, from: sender.tab?.url || 'extension' });
+  
+  
+  // Ensure extension is initialized before handling messages
+  ensureInitialized()
+    .then(() => handleMessage(request, sender, sendResponse))
+    .catch(error => {
+      log.error('Failed to initialize before handling message', { error: error.message });
+      sendResponse({ success: false, error: 'Extension initialization failed' });
+    });
+  return true; // Always return true for async response
 });
 
-chromeApi.runtime.onInstalled.addListener(async (details) => {
-  log.info('Extension installed/updated', { reason: details.reason });
-  ensureInitialized();
-
-  if (details.reason === 'update' || details.reason === 'chrome_update' || details.reason === 'install') {
-    const session = await chrome.storage.session.get('reopenPopupAfterReload');
-    if (session.reopenPopupAfterReload) {
-      await chrome.storage.session.remove('reopenPopupAfterReload');
-      await chromeApi.action.openPopup();
+async function handleMessage(request, sender, sendResponse) {
+  log.info('Handling message', { action: request.action });
+  
+  // Handle log messages from popup
+  if (request.action === 'log') {
+    const source = request.source || 'unknown';
+    const prefix = `[${source.toUpperCase()}]`;
+    
+    switch(request.level) {
+      case 'info':
+        log.info(`${prefix} ${request.message}`, request.data);
+        break;
+      case 'error':
+        log.error(`${prefix} ${request.message}`, request.data);
+        break;
+      case 'warn':
+        log.warn(`${prefix} ${request.message}`, request.data);
+        break;
+      case 'debug':
+        log.debug(`${prefix} ${request.message}`, request.data);
+        break;
     }
+    return false; // No response needed
   }
-});
-
-// Also initialize immediately
-log.info('Initializing extension...');
-(async () => {
-  await ensureInitialized();
-})();
-
-// Handle keyboard shortcut commands
-chromeApi.commands.onCommand.addListener(async (command) => {
-  log.info(`Command received: ${command}`);
-
-  if (command === 'quick-save') {
-    const [tab] = await chromeApi.tabs.query({ active: true, currentWindow: true });
-    if (!tab) {
-      log.warn('No active tab found for quick-save.');
-      return;
-    }
-
-    try {
-      log.info('Executing quick-save command', { tabId: tab.id });
-      await handleSave(tab, []);
-      log.info('Quick-save successful.');
-    } catch (error) {
-      log.error('Quick-save failed, but will still open popup.', { error: error.message });
-    }
-
-    // Always open the popup after the save attempt.
-    log.info('Opening popup after quick-save.');
-    await chromeApi.action.openPopup();
+  
+  if (request.action === 'save') {
+    (async () => {
+      try {
+        log.info('🚀 SAVE ACTION STARTED', {
+          timestamp: new Date().toISOString(),
+          tags: request.tags || [],
+          tagCount: (request.tags || []).length
+        });
+        
+        const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
+        
+        if (!tabs || tabs.length === 0) {
+          log.error('❌ NO ACTIVE TAB FOUND');
+          sendResponse({ success: false, error: 'No active tab found' });
+          return;
+        }
+        
+        log.info('📑 Active tab found', { 
+          url: tabs[0].url,
+          title: tabs[0].title,
+          tabId: tabs[0].id
+        });
+        
+        const tags = request.tags || [];
+        log.info('🏷️ Calling handleSave with tags', { tags });
+        
+        const result = await handleSave(tabs[0], tags);
+        
+        log.info('✅ handleSave completed successfully', { 
+          success: result.success,
+          hasNoteId: !!result.noteId,
+          noteId: result.noteId,
+          warning: result.warning
+        });
+        sendResponse(result);
+      } catch (error) {
+        log.error('❌ SAVE ACTION FAILED', { 
+          error: error.message,
+          errorName: error.name,
+          stack: error.stack,
+          details: error.details
+        });
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Will respond asynchronously
   }
-});
-
-// Ensure initialization happens only once
-function ensureInitialized() {
-  if (!initializationPromise) {
-    initializationPromise = initializeExtension();
+  
+  if (request.action === 'saveSelection') {
+    (async () => {
+      try {
+        log.info('Save selection action');
+        const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
+        
+        const result = await handleSaveSelection(
+          tabs[0], 
+          request.selectedText, 
+          request.pageUrl || tabs[0].url
+        );
+        
+        log.info('handleSaveSelection completed', { 
+          success: result.success,
+          hasNoteId: !!result.noteId 
+        });
+        sendResponse(result);
+      } catch (error) {
+        log.info('Save selection failed', { 
+          error: error.message,
+          stack: error.stack 
+        });
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true; // Will respond asynchronously
   }
-  return initializationPromise;
+  
+  if (request.action === 'updateTags') {
+    (async () => {
+      try {
+        await updateNoteWithTags(request.noteId, request.tags);
+        sendResponse({ success: true });
+      } catch (error) {
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  }
+  
+  if (request.action === 'getHistory') {
+    storageService.getSavedArticles().then(articles => {
+      sendResponse(articles);
+    });
+    return true;
+  }
+  
+  if (request.action === 'setAuth') {
+    storageService.set({ 
+      [CONFIG.storageKeys.authToken]: request.token,
+      [CONFIG.storageKeys.userId]: request.userId 
+    }).then(() => {
+      sendResponse({ success: true });
+    }).catch(error => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  }
+  
+  if (request.action === 'setUserId') {
+    storageService.set({ 
+      [CONFIG.storageKeys.userId]: request.userId 
+    }).then(() => {
+      sendResponse({ success: true });
+    }).catch(error => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  }
+  
+  if (request.action === 'logCsvHeaders') {
+    log.info('CSV Headers found:', request.headers);
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  if (request.action === 'importPocket') {
+    handlePocketImport(request.articles).then(result => {
+      sendResponse(result);
+    }).catch(error => {
+      sendResponse({ success: false, error: error.message });
+    });
+    return true;
+  }
+  
+  if (request.action === 'login') {
+    loginWithAuth0().then(result => {
+      sendResponse(result);
+    });
+    return true;
+  }
+  
+  if (request.action === 'logout') {
+    logout().then(() => {
+      sendResponse({ success: true });
+    });
+    return true;
+  }
+  
+  if (request.action === 'checkAuth') {
+    isLoggedIn().then(loggedIn => {
+      sendResponse({ isLoggedIn: loggedIn });
+    });
+    return true;
+  }
+  
+  if (request.action === 'storeSelectionData') {
+    // Store selection data temporarily for context menu use
+    lastSelectionData = request.data;
+    sendResponse({ success: true });
+    return true;
+  }
+  
+  if (request.action === 'getAllHashtags') {
+    (async () => {
+      try {
+        log.info('Fetching all hashtags from saved articles');
+        
+        // Get all saved articles from storage
+        const savedArticles = await storageService.getSavedArticles();
+        
+        // Extract unique hashtags from all articles
+        const hashtagSet = new Set();
+        
+        savedArticles.forEach(article => {
+          if (article.tags && Array.isArray(article.tags)) {
+            article.tags.forEach(tag => {
+              // Normalize hashtag (ensure it starts with #)
+              const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
+              hashtagSet.add(normalizedTag);
+            });
+          }
+        });
+        
+        // Convert to array and sort alphabetically
+        const hashtags = Array.from(hashtagSet).sort();
+        
+        log.info('Extracted hashtags', { 
+          articleCount: savedArticles.length, 
+          hashtagCount: hashtags.length,
+          topHashtags: hashtags.slice(0, 5)
+        });
+        
+        sendResponse({ success: true, hashtags });
+      } catch (error) {
+        log.error('Failed to fetch hashtags', { error: error.message });
+        sendResponse({ success: false, error: error.message });
+      }
+    })();
+    return true;
+  }
 }
 
-// After a reload, check if we need to reopen the popup.
-(async () => {
-  try {
-    const session = await chrome.storage.session.get('reopenPopupAfterReload');
-    if (session.reopenPopupAfterReload) {
-      await chrome.storage.session.remove('reopenPopupAfterReload');
-      await chromeApi.action.openPopup();
+
+// Context menu
+
+// Store temporary selection data from content script
+let lastSelectionData = null;
+
+chromeApi.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (info.menuItemId === 'saveToIdeaPocket') {
+    // Handle full page save
+    handleSave(tab).catch(error => {
+      log.error('Context menu save failed:', error);
+    });
+  } else if (info.menuItemId === 'saveSelectionToIdeaPocket') {
+    // Handle text selection save
+    if (info.selectionText) {
+      try {
+        // Try to get rich selection data from content script
+        let selectionData = null;
+        try {
+          selectionData = await chromeApi.tabs.sendMessage(tab.id, { action: 'extractSelection' });
+          log.info('Got selection data from content script', { 
+            hasData: !!selectionData,
+            hasText: !!(selectionData?.text),
+            platform: selectionData?.pageInfo?.platform,
+            url: selectionData?.pageInfo?.url
+          });
+        } catch (e) {
+          log.info('Failed to get selection data from content script', { error: e.message });
+        }
+        
+        // If we didn't get data from content script, check stored data
+        if (!selectionData && lastSelectionData) {
+          log.info('Using stored selection data');
+          selectionData = lastSelectionData;
+          lastSelectionData = null; // Clear it after use
+        }
+        
+        log.info('Selection extraction response', {
+          hasStoredData: !!lastSelectionData,
+          hasResponse: !!selectionData,
+          hasText: !!(selectionData?.text),
+          hasTweetInfo: !!(selectionData?.tweetInfo),
+          tweetImages: selectionData?.tweetInfo?.images,
+          pageUrl: selectionData?.pageInfo?.url,
+          platform: selectionData?.pageInfo?.platform
+        });
+        
+        if (selectionData && selectionData.text) {
+          // Use rich selection data with link information
+          handleSaveSelectionWithLinks(tab, selectionData).catch(error => {
+            log.error('Selection save with links failed:', error);
+          });
+          
+          // Clear stored data after use
+          lastSelectionData = null;
+        } else {
+          // Fallback to simple text selection
+          handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
+            log.error('Selection save failed:', error);
+          });
+        }
+      } catch (e) {
+        // Content script not available, use simple selection
+        log.info('Content script not available, using simple selection', { error: e.message });
+        handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
+          log.error('Selection save failed:', error);
+        });
+      }
     }
-  } catch (error) {
-    logger.error('Failed to check for post-reload action', { error: error.message });
   }
-})();
+});
+
+// Flush logs before the service worker is terminated. Returning a promise keeps
+// the worker alive until the write completes (Chrome 110+ service-worker behavior).
+chrome.runtime.onSuspend.addListener(() => {
+  return logger.saveState();
+});
+
+// Handle Pocket import
+async function handlePocketImport(articles) {
+  const total = articles.length;
+  const importKey = 'pocketImportStatus';
+  log.info('Starting Pocket import', { total });
+
+  await storageService.set({ [importKey]: { status: 'running', imported: 0, total } });
+  
+  // Set badge to show import in progress
+  try {
+    await chromeApi.action.setBadgeText({ text: '0' });
+    await chromeApi.action.setBadgeBackgroundColor({ color: '#4CAF50' });
+    log.info('Badge set for import start');
+  } catch (error) {
+    log.error('Failed to set badge for import', { error: error.message });
+  }
+
+  let imported = 0;
+  let failed = 0;
+  const errors = [];
+
+  try {
+    const userId = (await storageService.getUserInfo()).userId;
+
+    // Process articles one by one using individual /notes/top calls
+    for (let i = 0; i < articles.length; i++) {
+      const article = articles[i];
+      
+      try {
+        if (!article.url || !article.url.startsWith('http')) {
+          throw new Error(`Invalid URL: ${article.url}`);
+        }
+
+        const articleData = {
+          title: article.title || 'Untitled',
+          url: article.url,
+          description: `Imported from Pocket on ${new Date().toLocaleDateString()}`,
+          content: '',
+          author: '',
+          publishedTime: '',
+          images: [],
+          savedAt: (article.addedAt && typeof article.addedAt.toISOString === 'function') ? article.addedAt.toISOString() : new Date().toISOString(),
+          domain: new URL(article.url).hostname,
+          tags: ['from-pocket', ...(Array.isArray(article.tags) ? article.tags : [])]
+        };
+        
+        const noteId = generateShortId();
+        const timestamp = new Date().toISOString();
+
+        const tokens = [];
+        if (articleData.title) {
+          tokens.push({
+            type: 'paragraph',
+            tokenId: generateShortId(),
+            content: [{ type: 'text', content: articleData.title, marks: [] }],
+            depth: 0,
+          });
+        }
+        tokens.push(createLinkTokens(articleData.url));
+        const tagsContent = articleData.tags.flatMap(tag => ([
+            { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
+            { type: 'text', content: ' ', marks: [] }
+        ]));
+        tokens.push({
+            type: 'paragraph',
+            tokenId: generateShortId(),
+            content: tagsContent,
+            depth: 0,
+        });
+
+        const noteData = {
+          id: noteId,
+          authorId: userId,
+          tokens: calculateTokenPositions(tokens),
+          readAll: false,
+          updatedAt: timestamp,
+          deletedAt: null,
+          folderId: null,
+          insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
+          isSharedPrivately: false,
+          directUrlOnly: true,
+          expansionSetting: 'auto'
+        };
+
+        // Use individual /notes/top API call with timeout protection
+        log.info(`Starting API call for article ${imported + 1}/${total}`, { title: articleData.title, url: articleData.url });
+        
+        // Add 15-second timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => 
+          setTimeout(() => reject(new Error('API call timeout after 15 seconds')), 15000)
+        );
+        
+        // This will throw an error if either the API call fails OR times out
+        await Promise.race([
+          apiClient.post('/notes/top', { note: noteData }),
+          timeoutPromise
+        ]);
+        
+        log.info(`API call succeeded for article ${imported + 1}/${total}`);
+
+        // Save to local storage after successful API call
+        await storageService.addSavedArticle({
+          ...articleData,
+          noteId: noteId,
+        });
+
+        imported++;
+        
+        // Update progress in storage and badge
+        await storageService.set({ [importKey]: { status: 'running', imported, failed, total } });
+        try {
+          await chromeApi.action.setBadgeText({ text: `${imported}` });
+          log.debug(`Badge updated to ${imported}`);
+        } catch (error) {
+          log.error('Failed to update badge', { error: error.message });
+        }
+        
+        log.info(`Imported article ${imported}/${total}`, { title: articleData.title });
+
+      } catch (error) {
+        failed++;
+        errors.push({ url: article.url, error: error.message });
+        log.error('Failed to import individual article', { 
+          articleIndex: i + 1,
+          total,
+          url: article.url, 
+          title: article.title,
+          error: error.message,
+          errorType: error.constructor.name 
+        });
+        
+        // Update progress even on failure
+        await storageService.set({ [importKey]: { status: 'running', imported, failed, total } });
+      }
+    }
+
+    // Clear badge
+    try {
+      await chromeApi.action.setBadgeText({ text: '' });
+      log.info('Badge cleared after import');
+    } catch (error) {
+      log.error('Failed to clear badge', { error: error.message });
+    }
+
+    // Send completion notification
+    if (imported > 0) {
+      try {
+        await chromeApi.notifications.create('pocket-import-complete', {
+          type: 'basic',
+          iconUrl: 'icon-48.png',
+          title: 'Pocket Import Complete',
+          message: `Successfully imported ${imported} articles${failed > 0 ? `, ${failed} failed` : ''}`
+        });
+      } catch (error) {
+        log.error('Failed to create completion notification', { error: error.message });
+        // Don't let notification failure break the import completion
+      }
+    }
+
+    await storageService.set({ [importKey]: { status: 'complete', imported, failed, total } });
+    log.info('Pocket import completed', { imported, failed, total });
+    
+    return { success: true, imported, failed, total };
+
+  } catch (error) {
+    log.error('Pocket import failed', { error: error.message });
+    await chromeApi.action.setBadgeText({ text: '' });
+    await storageService.set({ [importKey]: { status: 'error', error: error.message, imported, failed: total, total } });
+    return { success: false, error: error.message };
+  }
+}
 
 async function initializeExtension() {
   if (isInitialized) {
@@ -1217,493 +1648,5 @@ async function saveSelectionToThoughtstream(selectionData) {
   }
 }
 
-// Message handler with initialization check
-chromeApi.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  log.info('Message received', { action: request.action, from: sender.tab?.url || 'extension' });
-  
-  
-  // Ensure extension is initialized before handling messages
-  ensureInitialized()
-    .then(() => handleMessage(request, sender, sendResponse))
-    .catch(error => {
-      log.error('Failed to initialize before handling message', { error: error.message });
-      sendResponse({ success: false, error: 'Extension initialization failed' });
-    });
-  return true; // Always return true for async response
-});
-
-async function handleMessage(request, sender, sendResponse) {
-  log.info('Handling message', { action: request.action });
-  
-  // Handle log messages from popup
-  if (request.action === 'log') {
-    const source = request.source || 'unknown';
-    const prefix = `[${source.toUpperCase()}]`;
-    
-    switch(request.level) {
-      case 'info':
-        log.info(`${prefix} ${request.message}`, request.data);
-        break;
-      case 'error':
-        log.error(`${prefix} ${request.message}`, request.data);
-        break;
-      case 'warn':
-        log.warn(`${prefix} ${request.message}`, request.data);
-        break;
-      case 'debug':
-        log.debug(`${prefix} ${request.message}`, request.data);
-        break;
-    }
-    return false; // No response needed
-  }
-  
-  if (request.action === 'save') {
-    (async () => {
-      try {
-        log.info('🚀 SAVE ACTION STARTED', {
-          timestamp: new Date().toISOString(),
-          tags: request.tags || [],
-          tagCount: (request.tags || []).length
-        });
-        
-        const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
-        
-        if (!tabs || tabs.length === 0) {
-          log.error('❌ NO ACTIVE TAB FOUND');
-          sendResponse({ success: false, error: 'No active tab found' });
-          return;
-        }
-        
-        log.info('📑 Active tab found', { 
-          url: tabs[0].url,
-          title: tabs[0].title,
-          tabId: tabs[0].id
-        });
-        
-        const tags = request.tags || [];
-        log.info('🏷️ Calling handleSave with tags', { tags });
-        
-        const result = await handleSave(tabs[0], tags);
-        
-        log.info('✅ handleSave completed successfully', { 
-          success: result.success,
-          hasNoteId: !!result.noteId,
-          noteId: result.noteId,
-          warning: result.warning
-        });
-        sendResponse(result);
-      } catch (error) {
-        log.error('❌ SAVE ACTION FAILED', { 
-          error: error.message,
-          errorName: error.name,
-          stack: error.stack,
-          details: error.details
-        });
-        sendResponse({ success: false, error: error.message });
-      }
-    })();
-    return true; // Will respond asynchronously
-  }
-  
-  if (request.action === 'saveSelection') {
-    (async () => {
-      try {
-        log.info('Save selection action');
-        const tabs = await chromeApi.tabs.query({ active: true, currentWindow: true });
-        
-        const result = await handleSaveSelection(
-          tabs[0], 
-          request.selectedText, 
-          request.pageUrl || tabs[0].url
-        );
-        
-        log.info('handleSaveSelection completed', { 
-          success: result.success,
-          hasNoteId: !!result.noteId 
-        });
-        sendResponse(result);
-      } catch (error) {
-        log.info('Save selection failed', { 
-          error: error.message,
-          stack: error.stack 
-        });
-        sendResponse({ success: false, error: error.message });
-      }
-    })();
-    return true; // Will respond asynchronously
-  }
-  
-  if (request.action === 'updateTags') {
-    (async () => {
-      try {
-        await updateNoteWithTags(request.noteId, request.tags);
-        sendResponse({ success: true });
-      } catch (error) {
-        sendResponse({ success: false, error: error.message });
-      }
-    })();
-    return true;
-  }
-  
-  if (request.action === 'getHistory') {
-    storageService.getSavedArticles().then(articles => {
-      sendResponse(articles);
-    });
-    return true;
-  }
-  
-  if (request.action === 'setAuth') {
-    storageService.set({ 
-      [CONFIG.storageKeys.authToken]: request.token,
-      [CONFIG.storageKeys.userId]: request.userId 
-    }).then(() => {
-      sendResponse({ success: true });
-    }).catch(error => {
-      sendResponse({ success: false, error: error.message });
-    });
-    return true;
-  }
-  
-  if (request.action === 'setUserId') {
-    storageService.set({ 
-      [CONFIG.storageKeys.userId]: request.userId 
-    }).then(() => {
-      sendResponse({ success: true });
-    }).catch(error => {
-      sendResponse({ success: false, error: error.message });
-    });
-    return true;
-  }
-  
-  if (request.action === 'logCsvHeaders') {
-    log.info('CSV Headers found:', request.headers);
-    sendResponse({ success: true });
-    return true;
-  }
-  
-  if (request.action === 'importPocket') {
-    handlePocketImport(request.articles).then(result => {
-      sendResponse(result);
-    }).catch(error => {
-      sendResponse({ success: false, error: error.message });
-    });
-    return true;
-  }
-  
-  if (request.action === 'login') {
-    loginWithAuth0().then(result => {
-      sendResponse(result);
-    });
-    return true;
-  }
-  
-  if (request.action === 'logout') {
-    logout().then(() => {
-      sendResponse({ success: true });
-    });
-    return true;
-  }
-  
-  if (request.action === 'checkAuth') {
-    isLoggedIn().then(loggedIn => {
-      sendResponse({ isLoggedIn: loggedIn });
-    });
-    return true;
-  }
-  
-  if (request.action === 'storeSelectionData') {
-    // Store selection data temporarily for context menu use
-    lastSelectionData = request.data;
-    sendResponse({ success: true });
-    return true;
-  }
-  
-  if (request.action === 'getAllHashtags') {
-    (async () => {
-      try {
-        log.info('Fetching all hashtags from saved articles');
-        
-        // Get all saved articles from storage
-        const savedArticles = await storageService.getSavedArticles();
-        
-        // Extract unique hashtags from all articles
-        const hashtagSet = new Set();
-        
-        savedArticles.forEach(article => {
-          if (article.tags && Array.isArray(article.tags)) {
-            article.tags.forEach(tag => {
-              // Normalize hashtag (ensure it starts with #)
-              const normalizedTag = tag.startsWith('#') ? tag : `#${tag}`;
-              hashtagSet.add(normalizedTag);
-            });
-          }
-        });
-        
-        // Convert to array and sort alphabetically
-        const hashtags = Array.from(hashtagSet).sort();
-        
-        log.info('Extracted hashtags', { 
-          articleCount: savedArticles.length, 
-          hashtagCount: hashtags.length,
-          topHashtags: hashtags.slice(0, 5)
-        });
-        
-        sendResponse({ success: true, hashtags });
-      } catch (error) {
-        log.error('Failed to fetch hashtags', { error: error.message });
-        sendResponse({ success: false, error: error.message });
-      }
-    })();
-    return true;
-  }
-}
-
-
-// Context menu
-
-// Store temporary selection data from content script
-let lastSelectionData = null;
-
-chromeApi.contextMenus.onClicked.addListener(async (info, tab) => {
-  if (info.menuItemId === 'saveToIdeaPocket') {
-    // Handle full page save
-    handleSave(tab).catch(error => {
-      log.error('Context menu save failed:', error);
-    });
-  } else if (info.menuItemId === 'saveSelectionToIdeaPocket') {
-    // Handle text selection save
-    if (info.selectionText) {
-      try {
-        // Try to get rich selection data from content script
-        let selectionData = null;
-        try {
-          selectionData = await chromeApi.tabs.sendMessage(tab.id, { action: 'extractSelection' });
-          log.info('Got selection data from content script', { 
-            hasData: !!selectionData,
-            hasText: !!(selectionData?.text),
-            platform: selectionData?.pageInfo?.platform,
-            url: selectionData?.pageInfo?.url
-          });
-        } catch (e) {
-          log.info('Failed to get selection data from content script', { error: e.message });
-        }
-        
-        // If we didn't get data from content script, check stored data
-        if (!selectionData && lastSelectionData) {
-          log.info('Using stored selection data');
-          selectionData = lastSelectionData;
-          lastSelectionData = null; // Clear it after use
-        }
-        
-        log.info('Selection extraction response', {
-          hasStoredData: !!lastSelectionData,
-          hasResponse: !!selectionData,
-          hasText: !!(selectionData?.text),
-          hasTweetInfo: !!(selectionData?.tweetInfo),
-          tweetImages: selectionData?.tweetInfo?.images,
-          pageUrl: selectionData?.pageInfo?.url,
-          platform: selectionData?.pageInfo?.platform
-        });
-        
-        if (selectionData && selectionData.text) {
-          // Use rich selection data with link information
-          handleSaveSelectionWithLinks(tab, selectionData).catch(error => {
-            log.error('Selection save with links failed:', error);
-          });
-          
-          // Clear stored data after use
-          lastSelectionData = null;
-        } else {
-          // Fallback to simple text selection
-          handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
-            log.error('Selection save failed:', error);
-          });
-        }
-      } catch (e) {
-        // Content script not available, use simple selection
-        log.info('Content script not available, using simple selection', { error: e.message });
-        handleSaveSelection(tab, info.selectionText, info.pageUrl).catch(error => {
-          log.error('Selection save failed:', error);
-        });
-      }
-    }
-  }
-});
-
-// Flush logs before the service worker is terminated. Returning a promise keeps
-// the worker alive until the write completes (Chrome 110+ service-worker behavior).
-chrome.runtime.onSuspend.addListener(() => {
-  return logger.saveState();
-});
-
-// Handle Pocket import
-async function handlePocketImport(articles) {
-  const total = articles.length;
-  const importKey = 'pocketImportStatus';
-  log.info('Starting Pocket import', { total });
-
-  await storageService.set({ [importKey]: { status: 'running', imported: 0, total } });
-  
-  // Set badge to show import in progress
-  try {
-    await chromeApi.action.setBadgeText({ text: '0' });
-    await chromeApi.action.setBadgeBackgroundColor({ color: '#4CAF50' });
-    log.info('Badge set for import start');
-  } catch (error) {
-    log.error('Failed to set badge for import', { error: error.message });
-  }
-
-  let imported = 0;
-  let failed = 0;
-  const errors = [];
-
-  try {
-    const userId = (await storageService.getUserInfo()).userId;
-
-    // Process articles one by one using individual /notes/top calls
-    for (let i = 0; i < articles.length; i++) {
-      const article = articles[i];
-      
-      try {
-        if (!article.url || !article.url.startsWith('http')) {
-          throw new Error(`Invalid URL: ${article.url}`);
-        }
-
-        const articleData = {
-          title: article.title || 'Untitled',
-          url: article.url,
-          description: `Imported from Pocket on ${new Date().toLocaleDateString()}`,
-          content: '',
-          author: '',
-          publishedTime: '',
-          images: [],
-          savedAt: (article.addedAt && typeof article.addedAt.toISOString === 'function') ? article.addedAt.toISOString() : new Date().toISOString(),
-          domain: new URL(article.url).hostname,
-          tags: ['from-pocket', ...(Array.isArray(article.tags) ? article.tags : [])]
-        };
-        
-        const noteId = generateShortId();
-        const timestamp = new Date().toISOString();
-
-        const tokens = [];
-        if (articleData.title) {
-          tokens.push({
-            type: 'paragraph',
-            tokenId: generateShortId(),
-            content: [{ type: 'text', content: articleData.title, marks: [] }],
-            depth: 0,
-          });
-        }
-        tokens.push(createLinkTokens(articleData.url));
-        const tagsContent = articleData.tags.flatMap(tag => ([
-            { type: 'hashtag', content: tag.startsWith('#') ? tag : `#${tag}` },
-            { type: 'text', content: ' ', marks: [] }
-        ]));
-        tokens.push({
-            type: 'paragraph',
-            tokenId: generateShortId(),
-            content: tagsContent,
-            depth: 0,
-        });
-
-        const noteData = {
-          id: noteId,
-          authorId: userId,
-          tokens: calculateTokenPositions(tokens),
-          readAll: false,
-          updatedAt: timestamp,
-          deletedAt: null,
-          folderId: null,
-          insertedAt: new Date().toISOString().slice(0, 10).replace(/-/g, ''),
-          isSharedPrivately: false,
-          directUrlOnly: true,
-          expansionSetting: 'auto'
-        };
-
-        // Use individual /notes/top API call with timeout protection
-        log.info(`Starting API call for article ${imported + 1}/${total}`, { title: articleData.title, url: articleData.url });
-        
-        // Add 15-second timeout to prevent hanging
-        const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error('API call timeout after 15 seconds')), 15000)
-        );
-        
-        // This will throw an error if either the API call fails OR times out
-        await Promise.race([
-          apiClient.post('/notes/top', { note: noteData }),
-          timeoutPromise
-        ]);
-        
-        log.info(`API call succeeded for article ${imported + 1}/${total}`);
-
-        // Save to local storage after successful API call
-        await storageService.addSavedArticle({
-          ...articleData,
-          noteId: noteId,
-        });
-
-        imported++;
-        
-        // Update progress in storage and badge
-        await storageService.set({ [importKey]: { status: 'running', imported, failed, total } });
-        try {
-          await chromeApi.action.setBadgeText({ text: `${imported}` });
-          log.debug(`Badge updated to ${imported}`);
-        } catch (error) {
-          log.error('Failed to update badge', { error: error.message });
-        }
-        
-        log.info(`Imported article ${imported}/${total}`, { title: articleData.title });
-
-      } catch (error) {
-        failed++;
-        errors.push({ url: article.url, error: error.message });
-        log.error('Failed to import individual article', { 
-          articleIndex: i + 1,
-          total,
-          url: article.url, 
-          title: article.title,
-          error: error.message,
-          errorType: error.constructor.name 
-        });
-        
-        // Update progress even on failure
-        await storageService.set({ [importKey]: { status: 'running', imported, failed, total } });
-      }
-    }
-
-    // Clear badge
-    try {
-      await chromeApi.action.setBadgeText({ text: '' });
-      log.info('Badge cleared after import');
-    } catch (error) {
-      log.error('Failed to clear badge', { error: error.message });
-    }
-
-    // Send completion notification
-    if (imported > 0) {
-      try {
-        await chromeApi.notifications.create('pocket-import-complete', {
-          type: 'basic',
-          iconUrl: 'icon-48.png',
-          title: 'Pocket Import Complete',
-          message: `Successfully imported ${imported} articles${failed > 0 ? `, ${failed} failed` : ''}`
-        });
-      } catch (error) {
-        log.error('Failed to create completion notification', { error: error.message });
-        // Don't let notification failure break the import completion
-      }
-    }
-
-    await storageService.set({ [importKey]: { status: 'complete', imported, failed, total } });
-    log.info('Pocket import completed', { imported, failed, total });
-    
-    return { success: true, imported, failed, total };
-
-  } catch (error) {
-    log.error('Pocket import failed', { error: error.message });
-    await chromeApi.action.setBadgeText({ text: '' });
-    await storageService.set({ [importKey]: { status: 'error', error: error.message, imported, failed: total, total } });
-    return { success: false, error: error.message };
-  }
-}
+// Re-export handlers so other background modules can call them (circular import OK)
+export { handleSave, handleSaveSelection };

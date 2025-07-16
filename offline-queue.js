@@ -1,6 +1,6 @@
 // Offline queue for failed saves
 import storageService from './storage-service.js';
-import apiClient from './api-client.js';
+import apiClient from './api-client';
 
 const QUEUE_KEY = 'offlineSaveQueue';
 const MAX_QUEUE_SIZE = 50;

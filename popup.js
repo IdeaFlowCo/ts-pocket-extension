@@ -1,5 +1,5 @@
 // Popup script for IdeaPocket
-import CONFIG from './config.js';
+import CONFIG from './config.ts';
 import storageService from './storage-service.js';
 import chromeApi from './chrome-api.js';
 import Fuse from './fuse.mjs';
