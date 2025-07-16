@@ -805,6 +805,11 @@ async function handleQuickSave() {
             
             // Fade back in
             savedText.classList.remove('changing');
+            // Trigger slide/opacity bezier animation on the container
+            savedMessage.classList.add('fade-to-title');
+            savedMessage.addEventListener('animationend', () => {
+              savedMessage.classList.remove('fade-to-title');
+            }, { once: true });
             logger.info('🎭 Text changed to:', truncatedTitle);
           }, 150); // Half the transition duration
         }, 3000);
@@ -1249,7 +1254,25 @@ function showBriefTagsStatus(message, type = 'success') {
     }
   }
   
-  savedText.textContent = message;
+  // Fade out current text
+  savedText.classList.add('changing');
+
+  setTimeout(() => {
+    // Swap text while faded out
+    savedText.textContent = message;
+
+    // Trigger bezier slide animation on container (visual consistency)
+    const savedMessageContainer = savedText.closest('.saved-message');
+    if (savedMessageContainer) {
+      savedMessageContainer.classList.add('fade-to-title');
+      savedMessageContainer.addEventListener('animationend', () => {
+        savedMessageContainer.classList.remove('fade-to-title');
+      }, { once: true });
+    }
+
+    // Fade back in
+    savedText.classList.remove('changing');
+  }, 150); // half of opacity transition duration
   
   if (type === 'error') {
     savedText.style.color = '#d32f2f';
@@ -1257,13 +1280,17 @@ function showBriefTagsStatus(message, type = 'success') {
     savedText.style.color = '#019AB0';
   }
   
-  // Restore original text and checkmark after 2 seconds
+  // Restore original text with same fade sequence after 2 seconds
   setTimeout(() => {
-    savedText.textContent = originalText;
-    savedText.style.color = '';
-    if (checkIcon) {
-      checkIcon.style.display = originalCheckIcon;
-    }
+    savedText.classList.add('changing');
+    setTimeout(() => {
+      savedText.textContent = originalText;
+      savedText.style.color = '';
+      if (checkIcon) {
+        checkIcon.style.display = originalCheckIcon;
+      }
+      savedText.classList.remove('changing');
+    }, 150);
   }, 2000);
 }
 

@@ -1121,6 +1121,17 @@ body {
   animation: fadeIn 0.3s ease-out;
 }
 
+@keyframes fadeToTitle {
+  0% { opacity: 1; transform: translateY(0); }
+  40% { opacity: 0; transform: translateY(8px); }
+  60% { opacity: 0; transform: translateY(-8px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.saved-message.fade-to-title {
+  animation: fadeToTitle 0.6s cubic-bezier(0.4, 0, 0.2, 1) forwards;
+}
+
 /* Footer */
 .footer {
   text-align: center;
@@ -1424,12 +1435,9 @@ body {
   .tooltip-text {
     transition: none;
   }
-  
-  /* TEMPORARILY DISABLED FOR TESTING - uncomment when bezier is working
   .saved-message.fade-to-title {
     animation: none;
   }
-  */
 }
 
 /* Tooltip positioning for form control buttons */
