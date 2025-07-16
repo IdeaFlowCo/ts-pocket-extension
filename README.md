@@ -8,7 +8,8 @@ A powerful Chrome extension that provides a Pocket-like experience for saving ar
 - **One-click save** - Save any webpage to Ideaflow with a single click
 - **Smart article extraction** - Automatically extracts article content, removing ads and navigation
 - **Text selection saving** - Select any text and save it as a highlight with preserved links
-- **Pre and post-save tagging** - Add tags before saving or after an article is saved
+- **Seamless tagging** - Add tags that auto-save as you type with visual feedback
+- **Article management** - Delete saved articles directly from the extension popup
 - **Full-text search** - Search across all your saved articles by title, URL, tags, and content
 - **Offline support** - Failed saves are queued and automatically retried when back online
 
@@ -19,9 +20,10 @@ A powerful Chrome extension that provides a Pocket-like experience for saving ar
 
 ### User Interface
 - **Clean, modern popup** - Pocket-inspired interface with multiple views
-- **Recent saves list** - View your last 100 saved articles with search
-- **Tag autocomplete** - Suggests existing tags as you type
+- **Recent saves list** - View your last 100 saved articles with search and delete options
+- **Tag autocomplete** - Suggests existing tags as you type with seamless saving
 - **Multiple input methods** - Use keyboard shortcuts, context menu, or popup button
+- **Smooth animations** - Polished transitions with cubic-bezier curves
 - **Status notifications** - Real-time feedback for all actions
 
 ### Platform Integration
@@ -39,9 +41,11 @@ A powerful Chrome extension that provides a Pocket-like experience for saving ar
 
 ### For Development
 1. Clone this repository
-2. Open Chrome and navigate to `chrome://extensions/`
-3. Enable "Developer mode" in the top right
-4. Click "Load unpacked" and select the extension directory
+2. Run `npm install` to install dependencies
+3. Run `npm run build:dev` to build the extension
+4. Open Chrome and navigate to `chrome://extensions/`
+5. Enable "Developer mode" in the top right
+6. Click "Load unpacked" and select the `dist/` directory
 
 ## 🔧 Setup
 
@@ -63,16 +67,23 @@ Articles are automatically saved with #ideapocket and #article tags.
 2. Right-click and choose "Save Selection as Highlight"
 3. The selection is saved with #ideapocket and #highlight tags and preserves any links
 
-### Add Tags
-- **Before saving**: Add tags in the input field before clicking save
-- **After saving**: Add additional tags in the post-save screen
+### Add and Manage Tags
+- **Seamless tagging**: Add tags after saving with automatic saving as you type
+- **Tag management**: Remove individual tags by clicking the × button
 - **Tag delimiters**: Use space, comma, or semicolon to separate tags
-- **Autocomplete**: Start typing to see tag suggestions
+- **Autocomplete**: Start typing to see tag suggestions from your existing tags
+- **Visual feedback**: Shimmer effects show when tags are being saved
 
 ### Search Saved Articles
 - Use the search box in the popup to find articles
 - Search works across titles, URLs, tags, and content
 - Results update as you type
+- Click any article to open it in a new tab
+
+### Delete Articles
+- **Individual deletion**: Click the × button on any saved article in the recent list
+- **Current article**: Delete the currently saved article using the × button next to "Open in Ideaflow"
+- **Confirmation dialogs**: All deletions require confirmation to prevent accidents
 
 ### Import from Pocket
 1. Export your Pocket data from [getpocket.com/export](https://getpocket.com/export)
@@ -86,7 +97,7 @@ Articles are automatically saved with #ideapocket and #article tags.
 - **Manifest V3** - Built on Chrome's modern extension platform
 - **Service Worker** - Background script handles API calls and offline queue
 - **Content Scripts** - Intelligent content extraction with special handlers for Twitter/X
-- **Pure JavaScript** - No build process required, just reload to see changes
+- **TypeScript + esbuild** - Modern build process with bundling and type checking
 
 ### Data Storage
 - **Chrome Storage API** - Secure local storage for settings and cached articles
@@ -142,11 +153,17 @@ Articles are automatically saved with #ideapocket and #article tags.
 └── logger.js             # Debug logging system
 ```
 
+### Building for Development
+```bash
+npm run build:dev
+```
+This creates a development build in the `dist/` directory.
+
 ### Building for Production
 ```bash
-./build-production.sh
+npm run build
 ```
-This creates a production build in the `build/` directory and generates `ideapocket-production.zip` for Chrome Web Store submission.
+This creates a production build in the `dist/` directory and generates `ideapocket-production.zip` for Chrome Web Store submission.
 
 ### Debug Mode
 1. Open popup → Settings
